@@ -4,14 +4,16 @@ $current = current_segment();
 // [key, nhãn, icon, đã làm xong?, vai trò được thấy]
 $menu = [
     ['dashboard', 'Tổng quan',           'bi-speedometer2', true,  ['admin','manager','cashier','waiter','kitchen']],
+    ['floor',     'Sơ đồ bàn',           'bi-diagram-3',    true,  ['admin','manager','cashier','waiter']],
     ['users',     'Tài khoản',           'bi-person-gear',  true,  ['admin','manager']],
     ['branches',  'Chi nhánh',           'bi-shop',         true,  ['admin']],
     ['menu',      'Thực đơn',            'bi-journal-text', true,  ['admin','manager']],
-    ['tables',    'Bàn & đặt bàn',       'bi-grid-3x3-gap', true,  ['admin','manager','cashier','waiter']],
-    ['orders',    'Gọi món & thanh toán','bi-receipt',      false, ['admin','manager','cashier','waiter']],
-    ['kitchen',   'Màn hình bếp',        'bi-fire',         false, ['admin','manager','kitchen']],
+    ['tables',    'Quản lý bàn',       'bi-grid-3x3-gap', true,  ['admin','manager','cashier','waiter']],
+    ['orders',    'Đơn đang mở','bi-receipt',      true,  ['admin','manager','cashier','waiter']],
+    ['history',   'Lịch sử đơn',         'bi-clock-history',true,  ['admin','manager','cashier']],
+    ['kitchen',   'Màn hình bếp',        'bi-fire',         true,  ['admin','manager','kitchen']],
     ['inventory', 'Kho nguyên liệu',     'bi-box-seam',     false, ['admin','manager']],
-    ['employees', 'Nhân viên',           'bi-people',       false, ['admin','manager']],
+    ['employees', 'Nhân viên',           'bi-people',       true,  ['admin','manager']],
     ['reports',   'Báo cáo',             'bi-graph-up',     false, ['admin','manager']],
     ['chat',      'Chat khách hàng',     'bi-chat-dots',    false, ['admin','manager','cashier','waiter']],
 ];

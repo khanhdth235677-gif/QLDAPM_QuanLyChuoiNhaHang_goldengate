@@ -7,4 +7,4 @@
   <div class="col-sm-6"><div class="card border-warning"><div class="card-body">
     <div class="text-muted">Đang nấu</div><div class="fs-2 fw-semibold"><?= $q['cooking'] ?></div></div></div></div>
 </div>
-<div class="alert alert-info mt-4">Màn hình bếp chi tiết (nhận món, báo xong) sẽ có ở giai đoạn 5.</div>
+<a class="btn btn-danger btn-lg mt-4" href="<?= url('kitchen') ?>"><i class="bi bi-fire"></i> Mở màn hình bếp</a>

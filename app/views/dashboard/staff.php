@@ -11,4 +11,5 @@
   <div class="col-6 col-xl-3"><div class="card border-primary"><div class="card-body">
     <div class="text-muted">Đơn đang mở</div><div class="fs-3 fw-semibold"><?= $open ?></div></div></div></div>
 </div>
-<div class="alert alert-info mt-4">Sơ đồ bàn và chức năng gọi món sẽ có ở giai đoạn 5.</div>
+<a class="btn btn-warning btn-lg mt-4 me-2" href="<?= url('floor') ?>"><i class="bi bi-grid-3x3-gap"></i> Mở sơ đồ bàn</a>
+<a class="btn btn-outline-dark btn-lg mt-4" href="<?= url('orders') ?>">Đơn đang mở</a>

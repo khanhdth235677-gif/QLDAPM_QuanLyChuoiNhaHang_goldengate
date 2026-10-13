@@ -1,7 +1,13 @@
 <?php
 function e($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function url(string $path = ''): string { return BASE_URL . '/' . ltrim($path, '/'); }
-function asset(string $path): string { return BASE_URL . '/assets/' . ltrim($path, '/'); }
+// Thêm ?v=<thời gian sửa file> để trình duyệt tự tải lại CSS/JS khi file thay đổi (tránh bị kẹt bản cũ trong cache)
+function asset(string $path): string {
+    $rel  = ltrim($path, '/');
+    $url  = BASE_URL . '/assets/' . $rel;
+    $file = ROOT_PATH . '/assets/' . $rel;
+    return is_file($file) ? $url . '?v=' . filemtime($file) : $url;
+}
 function redirect(string $path): void { header('Location: ' . url($path)); exit; }
 function money($n): string { return number_format((float)$n, 0, ',', '.') . ' ₫'; }
 function client_ip(): string { return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'; }

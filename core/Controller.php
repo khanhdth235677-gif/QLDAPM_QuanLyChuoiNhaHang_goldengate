@@ -3,12 +3,20 @@ class Controller
 {
     protected function view(string $name, array $data = [], bool $layout = true): void
     {
-        extract($data);
         $file = APP_PATH . '/views/' . $name . '.php';
         if (!is_file($file)) { http_response_code(500); exit('Không tìm thấy view: ' . e($name)); }
-        if ($layout) require APP_PATH . '/views/layouts/header.php';
-        require $file;
-        if ($layout) require APP_PATH . '/views/layouts/footer.php';
+
+        // Mỗi phần (header, nội dung, footer) chạy trong phạm vi biến riêng,
+        // để biến của header (menu, roles...) không ghi đè biến của view
+        if ($layout) $this->render(APP_PATH . '/views/layouts/header.php', ['title' => $data['title'] ?? '']);
+        $this->render($file, $data);
+        if ($layout) $this->render(APP_PATH . '/views/layouts/footer.php', []);
+    }
+
+    private function render(string $__file, array $__vars): void
+    {
+        extract($__vars, EXTR_SKIP);
+        require $__file;
     }
 
     protected function isPost(): bool { return $_SERVER['REQUEST_METHOD'] === 'POST'; }
