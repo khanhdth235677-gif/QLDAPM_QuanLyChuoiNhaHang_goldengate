@@ -1,10 +1,12 @@
 <?php
 $u = auth_user();
 $current = current_segment();
+if ($current === 'recipes') $current = 'menu';   // công thức nằm trong mục Thực đơn
 // [key, nhãn, icon, đã làm xong?, vai trò được thấy]
 $menu = [
     ['dashboard', 'Tổng quan',           'bi-speedometer2', true,  ['admin','manager','cashier','waiter','kitchen']],
     ['floor',     'Sơ đồ bàn',           'bi-diagram-3',    true,  ['admin','manager','cashier','waiter']],
+    ['reservations','Đặt bàn',           'bi-calendar-check',true, ['admin','manager','cashier','waiter']],
     ['users',     'Tài khoản',           'bi-person-gear',  true,  ['admin','manager']],
     ['branches',  'Chi nhánh',           'bi-shop',         true,  ['admin']],
     ['menu',      'Thực đơn',            'bi-journal-text', true,  ['admin','manager']],
@@ -12,7 +14,7 @@ $menu = [
     ['orders',    'Đơn đang mở','bi-receipt',      true,  ['admin','manager','cashier','waiter']],
     ['history',   'Lịch sử đơn',         'bi-clock-history',true,  ['admin','manager','cashier']],
     ['kitchen',   'Màn hình bếp',        'bi-fire',         true,  ['admin','manager','kitchen']],
-    ['inventory', 'Kho nguyên liệu',     'bi-box-seam',     false, ['admin','manager']],
+    ['inventory', 'Kho nguyên liệu',     'bi-box-seam',     true,  ['admin','manager']],
     ['employees', 'Nhân viên',           'bi-people',       true,  ['admin','manager']],
     ['reports',   'Báo cáo',             'bi-graph-up',     false, ['admin','manager']],
     ['chat',      'Chat khách hàng',     'bi-chat-dots',    false, ['admin','manager','cashier','waiter']],

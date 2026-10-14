@@ -121,7 +121,34 @@ class Order
              WHERE t.branch_id = ?
              ORDER BY LENGTH(t.table_name), t.table_name");
         $st->execute([$branchId]);
-        return $st->fetchAll();
+        $tables = $st->fetchAll();
+
+        // Gắn lượt đặt sắp tới (từ 30 phút trước đến 60 phút sau) vào từng bàn
+        $rs = Database::get()->prepare(
+            "SELECT id, table_id, customer_name, guests, reserved_at FROM reservations
+             WHERE branch_id = ? AND table_id IS NOT NULL AND status IN ('pending', 'confirmed')
+               AND reserved_at BETWEEN (NOW() - INTERVAL 30 MINUTE) AND (NOW() + INTERVAL 60 MINUTE)
+             ORDER BY reserved_at");
+        $rs->execute([$branchId]);
+        $next = [];
+        foreach ($rs->fetchAll() as $r) if (!isset($next[$r['table_id']])) $next[$r['table_id']] = $r;
+        foreach ($tables as &$t) {
+            $r = $next[$t['id']] ?? null;
+            $t['res_id']     = $r['id'] ?? null;
+            $t['res_name']   = $r['customer_name'] ?? null;
+            $t['res_at']     = $r['reserved_at'] ?? null;
+            $t['res_guests'] = $r['guests'] ?? null;
+        }
+        unset($t);
+        return $tables;
+    }
+
+    // Bàn đang có đơn mở chưa?
+    public static function hasOpen(int $tableId): bool
+    {
+        $st = Database::get()->prepare("SELECT COUNT(*) FROM orders WHERE table_id = ? AND status = 'open'");
+        $st->execute([$tableId]);
+        return (int)$st->fetchColumn() > 0;
     }
 
     public static function openList(?int $branchId): array

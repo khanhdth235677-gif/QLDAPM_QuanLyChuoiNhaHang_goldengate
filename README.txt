@@ -1,4 +1,4 @@
-GOLDEN GATE - Khung dự án (đến Giai đoạn 5B: thanh toán, in hóa đơn, màn hình bếp)
+GOLDEN GATE - Khung dự án (đến Giai đoạn 6B: kho + công thức món, tự trừ kho)
 
 1. Chép thư mục "goldengate" vào C:\xampp\htdocs\  (nếu đã sửa config/config.php thì giữ lại file của bạn)
 2. Bật Apache + MySQL, import database/goldengate_db.sql (nếu chưa làm)
@@ -8,3 +8,6 @@ GOLDEN GATE - Khung dự án (đến Giai đoạn 5B: thanh toán, in hóa đơn
 6. Nếu tải ảnh món bị lỗi: kiểm tra extension=fileinfo đã bật trong php.ini và thư mục assets/uploads/menu ghi được
 
 Giai đoạn 5B: chỉnh mức VAT và mức giảm giá tối đa của thu ngân trong config/billing.php (hỏi kế toán mức VAT hiện hành).
+
+Giai đoạn 6B: chạy database/migration_giai_doan_6b.sql trong phpMyAdmin (tạo bảng recipes).
+Tùy chọn: chạy database/seed_cong_thuc_mau.sql để có công thức mẫu thử tự trừ kho.

@@ -9,7 +9,7 @@ class Router
         $parts = $url === '' ? [] : explode('/', $url);
 
         foreach ($parts as $p) {
-            if (!preg_match('/^[A-Za-z0-9_]+$/', $p)) $this->notFound();
+            if (!preg_match('/^[A-Za-z0-9_]+$/', $p)) $this->notFound('Địa chỉ "' . $url . '" chứa ký tự không hợp lệ.');
         }
 
         $class  = ucfirst(strtolower($parts[0] ?? 'dashboard')) . 'Controller';
@@ -17,25 +17,26 @@ class Router
         $params = array_slice($parts, 2);
 
         $file = APP_PATH . '/controllers/' . $class . '.php';
-        if (!is_file($file)) $this->notFound();
+        if (!is_file($file)) $this->notFound('Không tìm thấy file controller: ' . $file);
         require_once $file;
 
+        if (!class_exists($class, false)) $this->notFound('File ' . $file . ' có nhưng không chứa class ' . $class . '.');
         $controller = new $class();
-        if (!method_exists($controller, $method)) $this->notFound();
+        if (!method_exists($controller, $method)) $this->notFound('Class ' . $class . ' không có hàm "' . $method . '".');
 
         $rm = new ReflectionMethod($controller, $method);
-        if (!$rm->isPublic()
-            || count($params) > $rm->getNumberOfParameters()
-            || count($params) < $rm->getNumberOfRequiredParameters()) {
-            $this->notFound();
-        }
+        if (!$rm->isPublic()) $this->notFound('Hàm ' . $class . '::' . $method . ' không phải public.');
+        if (count($params) > $rm->getNumberOfParameters()) $this->notFound('Địa chỉ có thừa tham số cho ' . $class . '::' . $method . '.');
+        if (count($params) < $rm->getNumberOfRequiredParameters()) $this->notFound('Địa chỉ thiếu tham số cho ' . $class . '::' . $method . '.');
 
         $rm->invokeArgs($controller, $params);
     }
 
-    private function notFound(): void
+    // Ở chế độ DEBUG, trang 404 sẽ hiện lý do cụ thể để dễ sửa
+    private function notFound(string $reason = ''): void
     {
         http_response_code(404);
+        if (!(defined('DEBUG') && DEBUG)) $reason = '';
         require APP_PATH . '/views/errors/404.php';
         exit;
     }

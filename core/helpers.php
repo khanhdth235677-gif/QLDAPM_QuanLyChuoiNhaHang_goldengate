@@ -52,3 +52,17 @@ function has_role(string ...$roles): bool {
     $u = auth_user();
     return $u !== null && in_array($u['role'], $roles, true);
 }
+
+// Hiển thị số lượng kho gọn: 12,5 thay vì 12,50; 20 thay vì 20,00
+function qty_fmt($v): string {
+    $s = number_format((float)$v, 2, ',', '.');
+    return rtrim(rtrim($s, '0'), ',');
+}
+
+// Chuẩn hóa số lượng người nhập: nhận 12,5 hoặc 12.5, trả về chuỗi '12.5' hoặc null nếu sai
+function parse_qty(string $raw, bool $allowZero = false): ?string {
+    $raw = str_replace(',', '.', trim($raw));
+    if (!preg_match('/^\d{1,10}(\.\d{1,2})?$/', $raw)) return null;
+    if (!$allowZero && (float)$raw <= 0) return null;
+    return $raw;
+}

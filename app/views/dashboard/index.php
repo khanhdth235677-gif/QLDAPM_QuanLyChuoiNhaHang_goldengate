@@ -26,6 +26,14 @@
     </div></div>
   </div>
   <?php endif; ?>
+  <div class="col-sm-6 col-xl-3">
+    <a class="text-decoration-none text-reset" href="<?= url('inventory') ?>?low=1">
+      <div class="card <?= $stats['low_stock'] > 0 ? 'border-danger' : 'border-secondary' ?>"><div class="card-body">
+        <div class="text-muted">Nguyên liệu sắp hết</div>
+        <div class="fs-4 fw-semibold <?= $stats['low_stock'] > 0 ? 'text-danger' : '' ?>"><?= (int)$stats['low_stock'] ?></div>
+      </div></div>
+    </a>
+  </div>
 </div>
 
 <?php if (!empty($branchRows)): ?>

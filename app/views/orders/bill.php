@@ -27,7 +27,9 @@ $sumLines = 0; foreach ($lines as $l) $sumLines += (int)$l['quantity'] * (int)$l
 </head>
 <body>
 <div class="no-print text-center pt-3">
-  <?php if ($justPaid): ?><div class="alert alert-success d-inline-block py-2">Thanh toán thành công.</div><br><?php endif; ?>
+  <?php foreach (['success' => 'success', 'error' => 'warning'] as $fk => $fc): ?>
+    <?php if ($fm = flash($fk)): ?><div class="alert alert-<?= $fc ?> d-inline-block py-2 mx-2"><?= e($fm) ?></div><br><?php endif; ?>
+  <?php endforeach; ?>
   <button class="btn btn-dark" onclick="window.print()"><i class="bi bi-printer"></i> In</button>
   <a class="btn btn-outline-dark" href="<?= url('floor') ?><?= has_role('admin') ? '?branch=' . (int)$order['branch_id'] : '' ?>">Về sơ đồ bàn</a>
   <?php if (!$isPaid && $order['status'] === 'open'): ?><a class="btn btn-outline-dark" href="<?= url('orders/show/' . (int)$order['id']) ?>">Quay lại gọi món</a><?php endif; ?>

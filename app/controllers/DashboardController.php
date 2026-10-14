@@ -1,4 +1,5 @@
 <?php
+require_once APP_PATH . '/models/Inventory.php';
 // Mỗi vai trò thấy một trang tổng quan riêng
 class DashboardController extends Controller
 {
@@ -36,6 +37,8 @@ class DashboardController extends Controller
             'tables_total'  => (int)$one("SELECT COUNT(*) FROM dining_tables WHERE 1=1$scope"),
             'branches'      => $bid ? null : (int)$pdo->query('SELECT COUNT(*) FROM branches WHERE status=1')->fetchColumn(),
         ];
+
+        $stats['low_stock'] = Inventory::lowCount($bid ?: null);
 
         $branchRows = null;
         if (!$bid) {   // admin: bảng so sánh từng chi nhánh

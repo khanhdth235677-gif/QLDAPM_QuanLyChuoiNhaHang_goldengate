@@ -3,5 +3,14 @@
 <title>404</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"></head>
 <body class="d-flex align-items-center justify-content-center vh-100 bg-light">
-<div class="text-center"><h1 class="display-1 text-warning">404</h1><p class="lead">Không tìm thấy trang</p>
-<a class="btn btn-dark" href="<?= url('dashboard') ?>">Về trang chủ</a></div></body></html>
+<div class="text-center" style="max-width:640px">
+  <h1 class="display-1 text-warning">404</h1>
+  <p class="lead">Không tìm thấy trang</p>
+  <?php if (!empty($reason)): ?>
+    <div class="alert alert-secondary text-start small">
+      <strong>Chẩn đoán (chỉ hiện khi DEBUG bật):</strong><br>
+      <?= htmlspecialchars($reason, ENT_QUOTES, 'UTF-8') ?>
+    </div>
+  <?php endif; ?>
+  <a class="btn btn-dark" href="<?= url('dashboard') ?>">Về trang chủ</a>
+</div></body></html>

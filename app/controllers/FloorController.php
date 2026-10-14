@@ -25,7 +25,7 @@ class FloorController extends Controller
 
         $tables = $bid ? Order::floor($bid) : [];
         $count = ['empty' => 0, 'occupied' => 0, 'reserved' => 0];
-        foreach ($tables as $t) $count[$t['order_id'] ? 'occupied' : $t['status']]++;
+        foreach ($tables as $t) $count[$t['order_id'] ? 'occupied' : ($t['res_id'] ? 'reserved' : $t['status'])]++;
 
         $this->view('floor/index', [
             'title' => 'Sơ đồ bàn', 'tables' => $tables, 'count' => $count,

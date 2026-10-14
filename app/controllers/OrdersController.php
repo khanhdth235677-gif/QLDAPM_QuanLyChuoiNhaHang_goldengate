@@ -4,6 +4,7 @@ require_once APP_PATH . '/models/Order.php';
 require_once APP_PATH . '/models/Category.php';
 require_once APP_PATH . '/models/DiningTable.php';
 require_once APP_PATH . '/models/Branch.php';
+require_once APP_PATH . '/models/Inventory.php';
 
 // Gọi món, thanh toán, in hóa đơn
 class OrdersController extends Controller
@@ -168,6 +169,9 @@ class OrdersController extends Controller
             $msg = 'Đã thanh toán bàn ' . $order['table_name'] . ': ' . money($res['total']) . '.';
             if ($res['change'] > 0) $msg .= ' Tiền thối lại: ' . money($res['change']) . '.';
             flash('success', $msg);
+            // Tự trừ kho theo công thức món. Không bao giờ làm hỏng việc thanh toán
+            $stockWarn = Inventory::consumeForOrder($oid, (int)$order['branch_id'], (int)auth_user()['id']);
+            if ($stockWarn) flash('error', $stockWarn);
             redirect('orders/bill/' . $oid . '?paid=1');
         }
 
