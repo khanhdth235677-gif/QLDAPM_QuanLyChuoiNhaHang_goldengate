@@ -13,6 +13,16 @@ class Controller
         if ($layout) $this->render(APP_PATH . '/views/layouts/footer.php', []);
     }
 
+    // Trang công khai cho khách (không cần đăng nhập, dùng giao diện riêng)
+    protected function publicView(string $name, array $data = []): void
+    {
+        $file = APP_PATH . '/views/' . $name . '.php';
+        if (!is_file($file)) { http_response_code(500); exit('Không tìm thấy view: ' . e($name)); }
+        $this->render(APP_PATH . '/views/layouts/public_header.php', ['title' => $data['title'] ?? '']);
+        $this->render($file, $data);
+        $this->render(APP_PATH . '/views/layouts/public_footer.php', []);
+    }
+
     private function render(string $__file, array $__vars): void
     {
         extract($__vars, EXTR_SKIP);

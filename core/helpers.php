@@ -66,3 +66,22 @@ function parse_qty(string $raw, bool $allowZero = false): ?string {
     if (!$allowZero && (float)$raw <= 0) return null;
     return $raw;
 }
+
+// JSON an toàn để nhúng thẳng vào thẻ <script> (chặn </script> và ký tự đặc biệt trong dữ liệu)
+function json_js($v): string {
+    return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+}
+
+// Chuẩn hóa số điện thoại về dạng 0xxxxxxxxx (bỏ khoảng trắng, dấu chấm, gạch; đổi +84 thành 0)
+function normalize_phone(string $raw): string {
+    $s = preg_replace('/[\s().\-]/', '', trim($raw));
+    if (strpos($s, '+84') === 0) $s = '0' . substr($s, 3);
+    elseif (strpos($s, '84') === 0 && strlen($s) >= 11) $s = '0' . substr($s, 2);
+    return $s;
+}
+function valid_phone(string $normalized): bool { return (bool)preg_match('/^0\d{9,10}$/', $normalized); }
+
+// Giống csrf_check() nhưng trả về true/false để API JSON tự trả lỗi
+function csrf_valid(): bool {
+    return isset($_POST['csrf'], $_SESSION['csrf']) && hash_equals($_SESSION['csrf'], (string)$_POST['csrf']);
+}

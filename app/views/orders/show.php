@@ -14,6 +14,19 @@ $sumQty = 0; foreach ($lines as $l) $sumQty += (int)$l['quantity'];
 <div class="row g-4">
   <!-- Thực đơn -->
   <div class="col-lg-7">
+    <?php if ($suggest): ?>
+    <div class="card card-body py-2 mb-3 border-warning">
+      <div class="small fw-semibold mb-2"><i class="bi bi-stars text-warning"></i> <?= e($suggestTitle) ?></div>
+      <div class="d-flex flex-wrap gap-2">
+        <?php foreach ($suggest as $sg): ?>
+          <form method="post" action="<?= url('orders/additem/' . $oid) ?>" class="m-0"><?= csrf_field() ?><?= $hidden ?>
+            <input type="hidden" name="menu_item_id" value="<?= (int)$sg['id'] ?>">
+            <button class="btn btn-sm btn-outline-warning text-dark"><?= e($sg['name']) ?> <span class="text-muted">· <?= money($sg['price']) ?></span></button>
+          </form>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
     <div class="mb-3 d-flex flex-wrap gap-2">
       <a class="btn btn-sm <?= !$cat ? 'btn-dark' : 'btn-outline-dark' ?>" href="<?= url('orders/show/' . $oid) ?>">Tất cả</a>
       <?php foreach ($cats as $c): ?>
@@ -42,6 +55,27 @@ $sumQty = 0; foreach ($lines as $l) $sumQty += (int)$l['quantity'];
 
   <!-- Đơn hiện tại -->
   <div class="col-lg-5">
+    <div class="card card-body py-2 mb-3">
+      <?php if ($customer): $tc = $customer['tier']['cls'] . (in_array($customer['tier']['cls'], ['warning', 'info'], true) ? ' text-dark' : ''); ?>
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-semibold"><i class="bi bi-person-heart"></i> <?= e($customer['name']) ?> <span class="badge bg-<?= $tc ?>"><?= e($customer['tier']['name']) ?></span></div>
+            <div class="small text-muted"><?= e($customer['phone']) ?> · <?= (int)$customer['sum']['visits'] ?> lần ghé<?= $customer['on'] ? ' · <strong>' . number_format($customer['sum']['balance'], 0, ',', '.') . ' điểm</strong>' : '' ?></div>
+          </div>
+          <form method="post" action="<?= url('orders/customer/' . $oid) ?>" class="m-0"><?= csrf_field() ?><?= $hidden ?>
+            <input type="hidden" name="action" value="remove"><button class="btn btn-sm btn-outline-secondary" title="Bỏ gắn khách">&times;</button></form>
+        </div>
+      <?php else: ?>
+        <form method="post" action="<?= url('orders/customer/' . $oid) ?>" class="m-0"><?= csrf_field() ?><?= $hidden ?>
+          <div class="small fw-semibold mb-1"><i class="bi bi-person-heart"></i> Khách thân thiết</div>
+          <div class="row g-1">
+            <div class="col-5"><input class="form-control form-control-sm" name="phone" type="tel" placeholder="Số điện thoại" required></div>
+            <div class="col-5"><input class="form-control form-control-sm" name="name" maxlength="100" placeholder="Tên (nếu khách mới)"></div>
+            <div class="col-2"><button class="btn btn-sm btn-outline-dark w-100">Gắn</button></div>
+          </div>
+        </form>
+      <?php endif; ?>
+    </div>
     <div class="card order-panel">
       <div class="card-header fw-semibold">Món đã gọi (<?= $sumQty ?>)</div>
       <ul class="list-group list-group-flush">

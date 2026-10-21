@@ -3,6 +3,7 @@ require_once APP_PATH . '/models/Branch.php';
 require_once APP_PATH . '/models/DiningTable.php';
 require_once APP_PATH . '/models/Order.php';
 require_once APP_PATH . '/models/Reservation.php';
+require_once APP_PATH . '/models/Loyalty.php';
 
 // Đặt bàn trước: nhập lượt đặt, xếp bàn, kiểm tra trùng giờ, khi khách đến thì mở bàn
 class ReservationsController extends Controller
@@ -27,7 +28,7 @@ class ReservationsController extends Controller
         if (!$d || $d->format('Y-m-d') !== $date) $date = date('Y-m-d');
 
         $filter   = $_GET['st'] ?? 'active';
-        if (!in_array($filter, ['active', 'done', 'cancelled', 'all'], true)) $filter = 'active';
+        if (!in_array($filter, ['active', 'pending', 'done', 'cancelled', 'all'], true)) $filter = 'active';
         $branchId = $isAdmin ? (int)($_GET['branch'] ?? 0) : (int)$u['branch_id'];
 
         $rows = Reservation::list($branchId ?: null, $date, $filter);
@@ -47,7 +48,7 @@ class ReservationsController extends Controller
         $this->view('reservations/index', [
             'title' => 'Đặt bàn', 'rows' => $rows, 'date' => $date, 'filter' => $filter, 'branchId' => $branchId,
             'isAdmin' => $isAdmin, 'branches' => $isAdmin ? Branch::activeList() : [], 'free' => $free,
-            'waiting' => $waiting, 'guests' => $guests, 'nowTs' => time(),
+            'waiting' => $waiting, 'guests' => $guests, 'nowTs' => time(), 'pendingAll' => Reservation::pendingCount($branchId ?: null),
         ]);
     }
 
@@ -157,6 +158,7 @@ class ReservationsController extends Controller
         }
 
         $orderId = Order::open($tableId, (int)$u['id']);
+        if (!empty($r['customer_id'])) Loyalty::setOrderCustomer($orderId, (int)$r['customer_id']);   // khách đã có hồ sơ thì gắn luôn vào đơn
         Reservation::markArrived((int)$r['id'], $tableId);
         flash('success', 'Đã mở bàn ' . $t['table_name'] . ' cho khách ' . $r['customer_name'] . '.');
         redirect('orders/show/' . $orderId);

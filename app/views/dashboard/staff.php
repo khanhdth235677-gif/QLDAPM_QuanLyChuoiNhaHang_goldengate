@@ -11,5 +11,8 @@
   <div class="col-6 col-xl-3"><div class="card border-primary"><div class="card-body">
     <div class="text-muted">Đơn đang mở</div><div class="fs-3 fw-semibold"><?= $open ?></div></div></div></div>
 </div>
+<?php if ($pendingRes > 0): ?>
+  <div class="alert alert-warning mt-4 mb-0">Có <strong><?= (int)$pendingRes ?></strong> lượt đặt bàn đang chờ xác nhận. <a href="<?= url('reservations') ?>?st=pending">Xem ngay</a></div>
+<?php endif; ?>
 <a class="btn btn-warning btn-lg mt-4 me-2" href="<?= url('floor') ?>"><i class="bi bi-grid-3x3-gap"></i> Mở sơ đồ bàn</a>
 <a class="btn btn-outline-dark btn-lg mt-4" href="<?= url('orders') ?>">Đơn đang mở</a>

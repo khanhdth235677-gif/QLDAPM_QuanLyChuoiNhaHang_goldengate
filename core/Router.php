@@ -12,7 +12,8 @@ class Router
             if (!preg_match('/^[A-Za-z0-9_]+$/', $p)) $this->notFound('Địa chỉ "' . $url . '" chứa ký tự không hợp lệ.');
         }
 
-        $class  = ucfirst(strtolower($parts[0] ?? 'dashboard')) . 'Controller';
+        $default = is_logged_in() ? 'dashboard' : 'site';   // địa chỉ gốc: khách thấy trang công khai
+        $class  = ucfirst(strtolower($parts[0] ?? $default)) . 'Controller';
         $method = strtolower($parts[1] ?? 'index');
         $params = array_slice($parts, 2);
 

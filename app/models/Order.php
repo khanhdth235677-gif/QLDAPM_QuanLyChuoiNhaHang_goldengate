@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/Loyalty.php';
 // Đơn hàng (hóa đơn đang mở) và các dòng món trong đơn
 class Order
 {
@@ -279,25 +280,29 @@ class Order
     // =====================================================
     const METHODS = ['cash' => 'Tiền mặt', 'card' => 'Thẻ', 'transfer' => 'Chuyển khoản', 'ewallet' => 'Ví điện tử'];
 
-    // Giá trong thực đơn là giá chưa VAT. VAT tính trên (tạm tính - giảm giá)
-    public static function compute(int $sub, string $mode, int $value, int $vatRate): array
+    // Giá trong thực đơn là giá chưa VAT. VAT tính trên (tạm tính - giảm giá).
+    // $extra: giảm thêm ngoài giảm giá nhập tay (ví dụ quy đổi từ điểm tích lũy)
+    public static function compute(int $sub, string $mode, int $value, int $vatRate, int $extra = 0): array
     {
         $discount = 0;
         if ($mode === 'percent')    $discount = (int)round($sub * $value / 100);
         elseif ($mode === 'amount') $discount = $value;
-        $discount = max(0, min($discount, $sub));
+        $discount = max(0, min($discount + $extra, $sub));
         $base = $sub - $discount;
         $vat  = (int)round($base * $vatRate / 100);
         return ['discount' => $discount, 'base' => $base, 'vat' => $vat, 'total' => $base + $vat];
     }
 
-    // Thanh toán và đóng đơn. Trả về [lỗi|null, kết quả|null]. Mọi số tiền đều tính lại ở server
-    public static function pay(int $orderId, string $mode, int $value, int $vatRate, string $method, int $cash, ?int $maxDiscountPct): array
+    // Thanh toán và đóng đơn. Trả về [lỗi|null, kết quả|null]. Mọi số tiền đều tính lại ở server.
+    // Nếu đơn gắn khách thân thiết: trừ điểm khách muốn dùng ($redeemPoints) và cộng điểm tích lũy cho đơn này
+    public static function pay(int $orderId, string $mode, int $value, int $vatRate, string $method, int $cash, ?int $maxDiscountPct,
+                               int $redeemPoints = 0, ?int $userId = null): array
     {
         $pdo = Database::get();
+        $loyaltyOn = Loyalty::enabled();
         $pdo->beginTransaction();
         try {
-            $st = $pdo->prepare('SELECT id, table_id, status FROM orders WHERE id = ? FOR UPDATE');
+            $st = $pdo->prepare('SELECT id, table_id, status, customer_id FROM orders WHERE id = ? FOR UPDATE');
             $st->execute([$orderId]);
             $o = $st->fetch();
             if (!$o || $o['status'] !== 'open') { $pdo->rollBack(); return ['Đơn đã được đóng hoặc không tồn tại.', null]; }
@@ -307,11 +312,33 @@ class Order
             $sub = (int)$st->fetchColumn();
             if ($sub <= 0) { $pdo->rollBack(); return ['Đơn chưa có món nào để thanh toán.', null]; }
 
-            $c = self::compute($sub, $mode, $value, $vatRate);
-            if ($maxDiscountPct !== null && $c['discount'] * 100 > $sub * $maxDiscountPct) {
+            // Điểm thưởng
+            $loyal = $loyaltyOn && $o['customer_id'];
+            $balance = 0; $earned = 0; $pointsDiscount = 0;
+            if ($loyal) [$balance, $earned] = Loyalty::lock($pdo, (int)$o['customer_id']);
+            if ($redeemPoints > 0) {
+                if (!$loyal) { $pdo->rollBack(); return ['Đơn chưa gắn khách thân thiết nên không dùng được điểm.', null]; }
+                if ($redeemPoints < LOYALTY_MIN_REDEEM) { $pdo->rollBack(); return ['Mỗi lần dùng điểm tối thiểu ' . LOYALTY_MIN_REDEEM . ' điểm.', null]; }
+                if ($redeemPoints > $balance) { $pdo->rollBack(); return ['Khách chỉ còn ' . $balance . ' điểm.', null]; }
+                $pointsDiscount = $redeemPoints * LOYALTY_POINT_VALUE;
+                if ($pointsDiscount * 100 > $sub * LOYALTY_MAX_REDEEM_PERCENT) {
+                    $pdo->rollBack();
+                    return ['Chỉ được dùng điểm giảm tối đa ' . LOYALTY_MAX_REDEEM_PERCENT . '% tạm tính của đơn.', null];
+                }
+            }
+
+            // Giảm giá nhập tay: thu ngân bị giới hạn mức tối đa (điểm thưởng không tính vào giới hạn này)
+            $manual = self::compute($sub, $mode, $value, $vatRate)['discount'];
+            if ($maxDiscountPct !== null && $manual * 100 > $sub * $maxDiscountPct) {
                 $pdo->rollBack();
                 return ['Thu ngân chỉ được giảm tối đa ' . $maxDiscountPct . '% tạm tính. Hãy nhờ quản lý xử lý mức giảm lớn hơn.', null];
             }
+            if ($manual + $pointsDiscount > $sub) {
+                $pdo->rollBack();
+                return ['Tổng giảm giá và điểm đã dùng vượt quá giá trị đơn hàng.', null];
+            }
+
+            $c = self::compute($sub, $mode, $value, $vatRate, $pointsDiscount);
             if ($method === 'cash' && $cash < $c['total']) {
                 $pdo->rollBack();
                 return ['Tiền khách đưa chưa đủ (cần ' . number_format($c['total'], 0, ',', '.') . ' ₫).', null];
@@ -323,8 +350,22 @@ class Order
                 ->execute([$orderId, $method, $c['total']]);
             if ($o['table_id']) $pdo->prepare("UPDATE dining_tables SET status = 'empty' WHERE id = ?")->execute([$o['table_id']]);
 
+            // Ghi sổ điểm: trừ điểm đã dùng, cộng điểm tích lũy theo hạng của khách
+            $earn = 0;
+            if ($loyal) {
+                $tier = Loyalty::tier($earned);
+                $earn = (int)floor($c['total'] / LOYALTY_VND_PER_POINT * $tier['mult']);
+                $tag = 'HD' . str_pad((string)$orderId, 6, '0', STR_PAD_LEFT);
+                if ($redeemPoints > 0) Loyalty::addLedger($pdo, (int)$o['customer_id'], $orderId, 'redeem', -$redeemPoints, 'Dùng điểm ' . $tag, $userId);
+                if ($earn > 0)         Loyalty::addLedger($pdo, (int)$o['customer_id'], $orderId, 'earn', $earn, 'Tích điểm ' . $tag, $userId);
+            }
+
             $pdo->commit();
-            return [null, ['total' => $c['total'], 'change' => $method === 'cash' ? $cash - $c['total'] : 0]];
+            return [null, [
+                'total' => $c['total'], 'change' => $method === 'cash' ? $cash - $c['total'] : 0,
+                'loyal' => (bool)$loyal, 'earned' => $earn, 'redeemed' => $redeemPoints,
+                'balance' => $loyal ? $balance - $redeemPoints + $earn : null,
+            ]];
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             throw $e;

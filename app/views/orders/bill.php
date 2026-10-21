@@ -70,6 +70,15 @@ $sumLines = 0; foreach ($lines as $l) $sumLines += (int)$l['quantity'] * (int)$l
       <tr><td colspan="2" class="c"><small>Chưa gồm VAT và giảm giá</small></td></tr>
     <?php endif; ?>
   </table>
+  <?php if ($isPaid && !empty($loyalty)): ?>
+  <hr>
+  <table>
+    <tr><td colspan="2">Khách: <?= e($loyalty['name']) ?> (<?= e($loyalty['tier']['name']) ?>)</td></tr>
+    <?php if ($loyalty['redeemed'] > 0): ?><tr><td>Điểm đã dùng</td><td class="r">- <?= (int)$loyalty['redeemed'] ?></td></tr><?php endif; ?>
+    <tr><td>Điểm tích thêm</td><td class="r">+ <?= (int)$loyalty['earned'] ?></td></tr>
+    <tr><td>Điểm hiện có</td><td class="r"><?= (int)$loyalty['balance'] ?></td></tr>
+  </table>
+  <?php endif; ?>
   <hr>
   <div class="c"><?= $isPaid ? 'Cảm ơn quý khách, hẹn gặp lại!' : 'Phiếu này không có giá trị thanh toán' ?></div>
 </div>

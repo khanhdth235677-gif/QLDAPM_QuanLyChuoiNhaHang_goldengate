@@ -50,6 +50,25 @@
         <?php endif; ?>
       </div>
 
+      <?php if (!empty($loyal)): $tc = $loyal['tier']['cls'] . (in_array($loyal['tier']['cls'], ['warning', 'info'], true) ? ' text-dark' : ''); ?>
+      <div class="border rounded p-3 mb-3 bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+          <div><i class="bi bi-person-heart"></i> <strong><?= e($loyal['name']) ?></strong> <span class="badge bg-<?= $tc ?>"><?= e($loyal['tier']['name']) ?></span></div>
+          <?php if ($loyal['enabled']): ?><div class="small">Điểm hiện có: <strong><?= number_format($loyal['balance'], 0, ',', '.') ?></strong></div><?php endif; ?>
+        </div>
+        <?php if ($loyal['enabled']): ?>
+          <div class="row g-2 mt-1 align-items-end">
+            <div class="col-6"><label class="form-label small mb-1" for="use_points">Dùng điểm (1 điểm = <?= number_format(LOYALTY_POINT_VALUE, 0, ',', '.') ?> ₫)</label>
+              <input class="form-control form-control-sm" id="use_points" name="use_points" inputmode="numeric" <?= $loyal['maxPoints'] < LOYALTY_MIN_REDEEM ? 'disabled' : '' ?>></div>
+            <div class="col-6 small text-muted"><?= $loyal['maxPoints'] >= LOYALTY_MIN_REDEEM ? 'Dùng tối thiểu ' . LOYALTY_MIN_REDEEM . ', tối đa ' . $loyal['maxPoints'] . ' điểm cho đơn này.' : 'Chưa đủ điều kiện dùng điểm (tối thiểu ' . LOYALTY_MIN_REDEEM . ' điểm).' ?></div>
+          </div>
+          <div class="small text-muted mt-1">Đơn này cộng khoảng <strong id="earnHint">0</strong> điểm.</div>
+        <?php else: ?>
+          <div class="small text-muted mt-1">Chưa bật tính năng điểm (chạy migration_giai_doan_8c.sql).</div>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
+
       <div class="mb-3">
         <label class="form-label" for="vat_rate">VAT</label>
         <select class="form-select" id="vat_rate" name="vat_rate">
@@ -92,6 +111,7 @@
 (function () {
   var sub = <?= (int)$subtotal ?>;
   var f = document.getElementById('payForm');
+  var L = <?= json_js(!empty($loyal) && $loyal['enabled'] ? $loyal['js'] : null) ?>;
   function digits(v) { return parseInt(String(v).replace(/\D/g, ''), 10) || 0; }
   function fmt(n) { return n.toLocaleString('vi-VN') + ' ₫'; }
   function calc() {
@@ -99,11 +119,13 @@
     var d = 0;
     if (mode === 'percent') d = Math.round(sub * Math.min(val, 100) / 100);
     else if (mode === 'amount') d = val;
-    d = Math.max(0, Math.min(d, sub));
+    var pd = (L && f.use_points) ? digits(f.use_points.value) * L.pointValue : 0;
+    d = Math.max(0, Math.min(d + pd, sub));
     var base = sub - d, vat = Math.round(base * rate / 100), total = base + vat;
     document.getElementById('sumDiscount').textContent = d > 0 ? '- ' + fmt(d) : fmt(0);
     document.getElementById('sumVat').textContent = fmt(vat);
     document.getElementById('sumTotal').textContent = fmt(total);
+    if (L && document.getElementById('earnHint')) document.getElementById('earnHint').textContent = Math.floor(total / L.vndPerPoint * L.mult);
     var cash = f.method.value === 'cash';
     document.getElementById('cashBox').style.display = cash ? '' : 'none';
     document.getElementById('changeText').textContent = fmt(Math.max(0, digits(f.cash_received.value) - total));

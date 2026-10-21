@@ -1,5 +1,6 @@
 <?php
 require_once APP_PATH . '/models/Inventory.php';
+require_once APP_PATH . '/models/Reservation.php';
 // Mỗi vai trò thấy một trang tổng quan riêng
 class DashboardController extends Controller
 {
@@ -39,6 +40,7 @@ class DashboardController extends Controller
         ];
 
         $stats['low_stock'] = Inventory::lowCount($bid ?: null);
+        $stats['pending_res'] = Reservation::pendingCount($bid ?: null);
 
         $branchRows = null;
         if (!$bid) {   // admin: bảng so sánh từng chi nhánh
@@ -67,7 +69,8 @@ class DashboardController extends Controller
             $st->execute([$u['branch_id']]);
             $open = (int)$st->fetchColumn();
         }
-        $this->view('dashboard/staff', ['title' => 'Tổng quan', 'tables' => $tables, 'open' => $open]);
+        $pendingRes = $u['branch_id'] ? Reservation::pendingCount((int)$u['branch_id']) : 0;
+        $this->view('dashboard/staff', ['title' => 'Tổng quan', 'tables' => $tables, 'open' => $open, 'pendingRes' => $pendingRes]);
     }
 
     // Bếp

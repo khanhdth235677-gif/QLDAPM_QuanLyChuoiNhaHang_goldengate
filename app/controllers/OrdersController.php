@@ -5,6 +5,8 @@ require_once APP_PATH . '/models/Category.php';
 require_once APP_PATH . '/models/DiningTable.php';
 require_once APP_PATH . '/models/Branch.php';
 require_once APP_PATH . '/models/Inventory.php';
+require_once APP_PATH . '/models/Customer.php';
+require_once APP_PATH . '/models/Loyalty.php';
 
 // Gọi món, thanh toán, in hóa đơn
 class OrdersController extends Controller
@@ -54,10 +56,24 @@ class OrdersController extends Controller
         $emptyTables = array_values(array_filter(DiningTable::forBranch($bid),
             fn($t) => $t['status'] === 'empty' && (int)$t['id'] !== (int)$order['table_id']));
 
+        // Khách thân thiết gắn với đơn và món gợi ý (món khách hay gọi, hoặc món bán chạy của chi nhánh)
+        $cust = null; $suggest = []; $suggestTitle = '';
+        if (!empty($order['customer_id'])) {
+            $c = Customer::find((int)$order['customer_id']);
+            if ($c) {
+                $sum = Loyalty::summary((int)$c['id']);
+                $cust = ['id' => (int)$c['id'], 'name' => $c['full_name'], 'phone' => $c['phone'], 'sum' => $sum, 'tier' => Loyalty::tier($sum['earned']), 'on' => Loyalty::enabled()];
+                $suggest = Loyalty::favorites((int)$c['id'], $bid, 6);
+                if ($suggest) $suggestTitle = 'Món ' . $c['full_name'] . ' hay gọi';
+            }
+        }
+        if (!$suggest) { $suggest = Loyalty::bestSellers($bid, 30, 6); $suggestTitle = 'Bán chạy tại chi nhánh (30 ngày qua)'; }
+
         $this->view('orders/show', [
             'title' => 'Gọi món - Bàn ' . $order['table_name'], 'order' => $order, 'lines' => Order::items((int)$id),
             'cats' => Category::all(), 'cat' => $cat, 'menu' => Order::menuForBranch($bid, $cat ?: null),
             'emptyTables' => $emptyTables, 'canManage' => has_role('admin', 'manager'),
+            'customer' => $cust, 'suggest' => $suggest, 'suggestTitle' => $suggestTitle,
         ]);
     }
 
@@ -153,6 +169,7 @@ class OrdersController extends Controller
             $vat    = (int)($_POST['vat_rate'] ?? -1);
             $method = $_POST['method'] ?? '';
             $cash   = (int)preg_replace('/\D/', '', (string)($_POST['cash_received'] ?? ''));
+            $points = (int)preg_replace('/\D/', '', (string)($_POST['use_points'] ?? ''));
 
             $err = null;
             if (!in_array($mode, ['none', 'percent', 'amount'], true)) $err = 'Kiểu giảm giá không hợp lệ.';
@@ -162,12 +179,16 @@ class OrdersController extends Controller
 
             if (!$err) {
                 $max = has_role('admin', 'manager') ? null : MAX_CASHIER_DISCOUNT_PERCENT;
-                [$err, $res] = Order::pay($oid, $mode, $mode === 'none' ? 0 : $value, $vat, $method, $cash, $max);
+                [$err, $res] = Order::pay($oid, $mode, $mode === 'none' ? 0 : $value, $vat, $method, $cash, $max, $points, (int)auth_user()['id']);
             }
             if ($err) { flash('error', $err); redirect('orders/pay/' . $oid); }
 
             $msg = 'Đã thanh toán bàn ' . $order['table_name'] . ': ' . money($res['total']) . '.';
             if ($res['change'] > 0) $msg .= ' Tiền thối lại: ' . money($res['change']) . '.';
+            if ($res['loyal']) {
+                if ($res['redeemed'] > 0) $msg .= ' Đã dùng ' . $res['redeemed'] . ' điểm.';
+                $msg .= ' Cộng ' . $res['earned'] . ' điểm, khách hiện có ' . $res['balance'] . ' điểm.';
+            }
             flash('success', $msg);
             // Tự trừ kho theo công thức món. Không bao giờ làm hỏng việc thanh toán
             $stockWarn = Inventory::consumeForOrder($oid, (int)$order['branch_id'], (int)auth_user()['id']);
@@ -182,7 +203,7 @@ class OrdersController extends Controller
         }
         $this->view('orders/pay', [
             'title' => 'Thanh toán - Bàn ' . $order['table_name'], 'order' => $order, 'lines' => $lines,
-            'subtotal' => $subtotal, 'unserved' => $unserved, 'maxDiscount' => has_role('admin', 'manager') ? null : MAX_CASHIER_DISCOUNT_PERCENT,
+            'subtotal' => $subtotal, 'unserved' => $unserved, 'loyal' => $this->loyalInfo($order, $subtotal), 'maxDiscount' => has_role('admin', 'manager') ? null : MAX_CASHIER_DISCOUNT_PERCENT,
         ]);
     }
 
@@ -197,12 +218,59 @@ class OrdersController extends Controller
 
         $this->view('orders/bill', [
             'title' => 'Hóa đơn', 'order' => $order, 'lines' => Order::items((int)$id),
-            'branch' => Branch::find((int)$order['branch_id']), 'payments' => Order::payments((int)$id),
+            'branch' => Branch::find((int)$order['branch_id']), 'payments' => Order::payments((int)$id), 'loyalty' => Loyalty::forOrder((int)$id),
             'justPaid' => isset($_GET['paid']),
         ], false);
     }
 
+    // Gắn khách thân thiết vào đơn bằng số điện thoại (tạo hồ sơ mới nếu chưa có), hoặc bỏ gắn
+    public function customer(string $id = ''): void
+    {
+        $this->loadOrder($id);
+        $this->postOnly('orders/show/' . (int)$id);
+        $oid = (int)$id;
+
+        if (($_POST['action'] ?? '') === 'remove') {
+            Loyalty::setOrderCustomer($oid, null);
+            flash('success', 'Đã bỏ gắn khách khỏi đơn.');
+            $this->back($oid);
+        }
+
+        $phone = normalize_phone((string)($_POST['phone'] ?? ''));
+        $name = trim((string)($_POST['name'] ?? ''));
+        if (!valid_phone($phone)) { flash('error', 'Số điện thoại không hợp lệ. Ví dụ: 0901234567.'); $this->back($oid); }
+
+        $c = Customer::findByPhone($phone);
+        if ($c) {
+            $cid = (int)$c['id'];
+        } else {
+            if (mb_strlen($name) < 2 || mb_strlen($name) > 100) {
+                flash('error', 'Số này chưa có trong hệ thống. Nhập thêm tên khách để tạo hồ sơ mới.');
+                $this->back($oid);
+            }
+            $cid = Customer::findOrCreate($name, $phone);
+        }
+        Loyalty::setOrderCustomer($oid, $cid);
+        flash('success', 'Đã gắn khách ' . ($c['full_name'] ?? $name) . ' vào đơn.');
+        $this->back($oid);
+    }
+
     // ---------- nội bộ ----------
+    // Thông tin khách thân thiết cho màn hình thanh toán (null nếu đơn không gắn khách)
+    private function loyalInfo(array $order, int $subtotal): ?array
+    {
+        if (empty($order['customer_id'])) return null;
+        $c = Customer::find((int)$order['customer_id']);
+        if (!$c) return null;
+        $on = Loyalty::enabled();
+        $s = $on ? Loyalty::summary((int)$c['id']) : ['balance' => 0, 'earned' => 0];
+        $tier = Loyalty::tier((int)$s['earned']);
+        $byPct = (int)floor($subtotal * LOYALTY_MAX_REDEEM_PERCENT / 100 / LOYALTY_POINT_VALUE);
+        return ['enabled' => $on, 'name' => $c['full_name'], 'phone' => $c['phone'], 'balance' => (int)$s['balance'], 'tier' => $tier,
+                'maxPoints' => max(0, min((int)$s['balance'], $byPct)),
+                'js' => ['pointValue' => LOYALTY_POINT_VALUE, 'vndPerPoint' => LOYALTY_VND_PER_POINT, 'mult' => $tier['mult']]];
+    }
+
     private function back(int $orderId): void
     {
         $cat = (int)($_POST['cat'] ?? 0);

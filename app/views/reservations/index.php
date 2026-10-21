@@ -9,6 +9,12 @@ $qs = fn($d) => '?date=' . $d . '&st=' . $filter . ($isAdmin && $branchId ? '&br
   <a class="btn btn-warning" href="<?= url('reservations/create') ?><?= $isAdmin && $branchId ? '?branch=' . $branchId : '' ?>"><i class="bi bi-plus-lg"></i> Thêm đặt bàn</a>
 </div>
 
+<?php if ($pendingAll > 0): ?>
+  <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-bell"></i> Có <strong><?= (int)$pendingAll ?></strong> lượt đặt bàn đang <strong>chờ xác nhận</strong> (mọi ngày), thường là khách đặt online.</span>
+    <a class="btn btn-sm btn-dark" href="<?= url('reservations') ?>?st=pending&date=<?= e($date) ?><?= $isAdmin && $branchId ? '&branch=' . $branchId : '' ?>">Xem lượt chờ ngày này</a>
+  </div>
+<?php endif; ?>
 <div class="row g-3 mb-3">
   <div class="col-sm-6 col-xl-3"><div class="card border-warning"><div class="card-body">
     <div class="text-muted">Lượt đặt chưa đến</div><div class="fs-4 fw-semibold"><?= $waiting ?></div></div></div></div>
@@ -31,6 +37,7 @@ $qs = fn($d) => '?date=' . $d . '&st=' . $filter . ($isAdmin && $branchId ? '&br
   <div class="col-sm-3">
     <select class="form-select" name="st">
       <option value="active"    <?= $filter === 'active'    ? 'selected' : '' ?>>Chưa đến</option>
+      <option value="pending"   <?= $filter === 'pending'   ? 'selected' : '' ?>>Chờ xác nhận</option>
       <option value="done"      <?= $filter === 'done'      ? 'selected' : '' ?>>Khách đã đến</option>
       <option value="cancelled" <?= $filter === 'cancelled' ? 'selected' : '' ?>>Đã hủy</option>
       <option value="all"       <?= $filter === 'all'       ? 'selected' : '' ?>>Tất cả</option>
@@ -56,7 +63,7 @@ $qs = fn($d) => '?date=' . $d . '&st=' . $filter . ($isAdmin && $branchId ? '&br
     [$txt, $cls] = $stLabel[$r['status']]; ?>
     <tr class="<?= $active ? '' : 'text-muted' ?>">
       <td class="fw-semibold"><?= e(date('H:i', strtotime($r['reserved_at']))) ?></td>
-      <td><?= e($r['customer_name']) ?></td>
+      <td><?= e($r['customer_name']) ?><?= ($r['source'] ?? '') === 'online' ? ' <span class="badge bg-info text-dark">Online</span>' : '' ?></td>
       <td><?= e($r['customer_phone']) ?></td>
       <td class="text-center"><?= (int)$r['guests'] ?></td>
       <?php if ($isAdmin): ?><td><?= e($r['branch_name']) ?></td><?php endif; ?>

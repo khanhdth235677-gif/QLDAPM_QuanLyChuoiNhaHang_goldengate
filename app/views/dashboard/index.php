@@ -34,6 +34,14 @@
       </div></div>
     </a>
   </div>
+  <div class="col-sm-6 col-xl-3">
+    <a class="text-decoration-none text-reset" href="<?= url('reservations') ?>?st=pending">
+      <div class="card <?= $stats['pending_res'] > 0 ? 'border-warning' : 'border-secondary' ?>"><div class="card-body">
+        <div class="text-muted">Đặt bàn chờ xác nhận</div>
+        <div class="fs-4 fw-semibold <?= $stats['pending_res'] > 0 ? 'text-warning' : '' ?>"><?= (int)$stats['pending_res'] ?></div>
+      </div></div>
+    </a>
+  </div>
 </div>
 
 <?php if (!empty($branchRows)): ?>

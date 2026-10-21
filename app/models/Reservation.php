@@ -14,6 +14,7 @@ class Reservation
         $p = [$date];
         if ($branchId) { $sql .= ' AND r.branch_id = ?'; $p[] = $branchId; }
         if ($filter === 'active')         $sql .= " AND r.status IN ('pending', 'confirmed')";
+        elseif ($filter === 'pending')    $sql .= " AND r.status = 'pending'";
         elseif ($filter === 'done')       $sql .= " AND r.status = 'done'";
         elseif ($filter === 'cancelled')  $sql .= " AND r.status = 'cancelled'";
         $st = Database::get()->prepare($sql . ' ORDER BY r.reserved_at');
@@ -80,5 +81,81 @@ class Reservation
     public static function markArrived(int $id, int $tableId): void
     {
         Database::get()->prepare("UPDATE reservations SET status = 'done', table_id = ? WHERE id = ?")->execute([$tableId, $id]);
+    }
+
+    // =====================================================
+    // GIAI ĐOẠN 8A: đặt bàn online
+    // =====================================================
+
+    // Số lượt chờ xác nhận (mọi ngày)
+    public static function pendingCount(?int $branchId): int
+    {
+        $sql = "SELECT COUNT(*) FROM reservations WHERE status = 'pending'";
+        $p = [];
+        if ($branchId) { $sql .= ' AND branch_id = ?'; $p[] = $branchId; }
+        $st = Database::get()->prepare($sql);
+        $st->execute($p);
+        return (int)$st->fetchColumn();
+    }
+
+    // Số lượt khách đặt online từ một IP trong $minutes phút gần đây
+    public static function ipCount(string $ip, int $minutes = 60): int
+    {
+        $st = Database::get()->prepare("SELECT COUNT(*) FROM reservations WHERE source = 'online' AND ip = ? AND created_at > (NOW() - INTERVAL " . (int)$minutes . " MINUTE)");
+        $st->execute([$ip]);
+        return (int)$st->fetchColumn();
+    }
+
+    // Số lượt còn hiệu lực (chưa đến giờ hẹn) của một số điện thoại
+    public static function activeByPhone(string $phone): int
+    {
+        $st = Database::get()->prepare("SELECT COUNT(*) FROM reservations WHERE customer_phone = ? AND status IN ('pending', 'confirmed') AND reserved_at >= NOW()");
+        $st->execute([$phone]);
+        return (int)$st->fetchColumn();
+    }
+
+    // Số điện thoại này đã có lượt đặt quanh giờ đó chưa
+    public static function sameSlot(string $phone, string $at): bool
+    {
+        $st = Database::get()->prepare(
+            "SELECT COUNT(*) FROM reservations
+             WHERE customer_phone = ? AND status IN ('pending', 'confirmed')
+               AND ABS(TIMESTAMPDIFF(MINUTE, reserved_at, ?)) < " . (int)self::DURATION_MIN);
+        $st->execute([$phone, $at]);
+        return (int)$st->fetchColumn() > 0;
+    }
+
+    // Sức chứa gần đúng: [số bàn đủ chỗ cho $guests khách, số lượt đặt đang chiếm khung giờ đó]
+    public static function capacity(int $branchId, int $guests, string $at): array
+    {
+        $pdo = Database::get();
+        $st = $pdo->prepare('SELECT COUNT(*) FROM dining_tables WHERE branch_id = ? AND seats >= ?');
+        $st->execute([$branchId, $guests]);
+        $fit = (int)$st->fetchColumn();
+
+        $st = $pdo->prepare("SELECT COUNT(*) FROM reservations
+                             WHERE branch_id = ? AND status IN ('pending', 'confirmed')
+                               AND ABS(TIMESTAMPDIFF(MINUTE, reserved_at, ?)) < " . (int)self::DURATION_MIN);
+        $st->execute([$branchId, $at]);
+        return [$fit, (int)$st->fetchColumn()];
+    }
+
+    // Khách đặt online: chưa xếp bàn, chờ nhân viên xác nhận
+    public static function createOnline(array $d): int
+    {
+        $pdo = Database::get();
+        $pdo->prepare("INSERT INTO reservations (branch_id, table_id, customer_id, customer_name, customer_phone, guests, reserved_at, note, status, source, ip)
+                       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, 'pending', 'online', ?)")
+            ->execute([$d['branch_id'], $d['customer_id'], $d['customer_name'], $d['customer_phone'], $d['guests'], $d['reserved_at'], $d['note'], $d['ip']]);
+        return (int)$pdo->lastInsertId();
+    }
+
+    public static function findForTrack(int $id): array|false
+    {
+        $st = Database::get()->prepare(
+            'SELECT r.*, b.name AS branch_name, b.phone AS branch_phone
+             FROM reservations r JOIN branches b ON b.id = r.branch_id WHERE r.id = ?');
+        $st->execute([$id]);
+        return $st->fetch();
     }
 }

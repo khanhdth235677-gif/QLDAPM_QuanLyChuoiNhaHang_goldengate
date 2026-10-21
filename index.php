@@ -19,6 +19,9 @@ if (isset($_SESSION['user']) && time() - ($_SESSION['last_activity'] ?? time()) 
     session_start();
     flash('error', 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
 }
-$_SESSION['last_activity'] = time();
+// Yêu cầu tự động hỏi tin nhắn (polling) không tính là hoạt động của người dùng,
+// để phiên vẫn tự hết hạn đúng hạn khi người dùng bỏ đi mà trang chat còn mở
+$passive = (bool)preg_match('#^(livechat/poll|chat/poll/\d+|chat/unread)$#', trim($_GET['url'] ?? '', '/'));
+if (!$passive) $_SESSION['last_activity'] = time();
 
 (new Router())->dispatch();
