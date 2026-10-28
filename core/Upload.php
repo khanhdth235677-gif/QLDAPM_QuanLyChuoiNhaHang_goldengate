@@ -3,7 +3,7 @@
 class Upload
 {
     const MAX_BYTES = 2097152;   // 2 MB
-
+ 
     // Trả về [đường dẫn tương đối trong assets/ hoặc null, thông báo lỗi hoặc null]
     public static function image(?array $f, string $subdir): array
     {
