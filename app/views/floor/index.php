@@ -16,7 +16,14 @@ $lbl = ['empty' => 'Trống', 'occupied' => 'Đang dùng', 'reserved' => 'Đã �
   <span><span class="legend-dot" style="background:#198754"></span> Trống: <strong><?= $count['empty'] ?></strong></span>
   <span><span class="legend-dot" style="background:#dc3545"></span> Đang dùng: <strong><?= $count['occupied'] ?></strong></span>
   <span><span class="legend-dot" style="background:#ffc107"></span> Đã đặt: <strong><?= $count['reserved'] ?></strong></span>
-  <span class="ms-auto"><a href="<?= url('reservations') ?>">Đặt bàn</a> · <a href="<?= url('orders') ?>">Đơn đang mở</a></span>
+  <div class="ms-auto d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-warning" href="<?= url('reservations') ?><?= $isAdmin && $bid ? '?branch=' . $bid : '' ?>">
+      <i class="bi bi-calendar-check"></i> Đặt bàn
+    </a>
+    <a class="btn btn-sm btn-outline-dark" href="<?= url('orders') ?><?= $isAdmin && $bid ? '?branch=' . $bid : '' ?>">
+      <i class="bi bi-receipt"></i> Đơn đang mở
+    </a>
+  </div>
 </div>
 
 <?php if (!$bid): ?>

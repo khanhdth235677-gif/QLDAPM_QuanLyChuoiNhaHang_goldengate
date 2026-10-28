@@ -17,6 +17,16 @@ class TablesController extends Controller
         ]);
     }
 
+    public function qr(string $id = ''): void
+    {
+        $table = $this->loadTable($id);
+        $branch = Branch::find((int)$table['branch_id']);
+        $table['branch_name'] = $branch['name'] ?? '';
+        $token = DiningTable::ensureQrToken((int)$table['id']);
+        $qrUrl = rtrim(PUBLIC_BASE_URL, '/') . url('site/order/' . (int)$table['id']) . '?token=' . rawurlencode($token);
+        $this->view('tables/qr', ['title' => 'Mã QR - Bàn ' . $table['table_name'], 'table' => $table, 'qrUrl' => $qrUrl]);
+    }
+
     public function create(): void
     {
         $this->requireRole('admin', 'manager');

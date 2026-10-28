@@ -11,6 +11,10 @@ $presets = [
     'Năm nay'     => [date('Y-01-01'), $today],
 ];
 $branchQ = $isAdmin && $bid ? ['branch' => $bid] : [];
+$activePreset = null;
+foreach ($presets as $label => [$pf, $pt]) {
+    if ($f === $pf && $t === $pt) { $activePreset = $label; break; }
+}
 ?>
 <h1 class="h3 mb-3">Báo cáo</h1>
 <ul class="nav nav-pills mb-3">
@@ -32,9 +36,17 @@ $branchQ = $isAdmin && $bid ? ['branch' => $bid] : [];
   <?php endif; ?>
   <div class="col-sm-2"><button class="btn btn-warning w-100">Xem</button></div>
 </form>
-<div class="mb-2 small">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="small text-muted me-1"><i class="bi bi-calendar-range"></i> Khoảng nhanh:</span>
   <?php foreach ($presets as $label => [$pf, $pt]): ?>
-    <a class="me-2" href="<?= url($action) . '?' . e(http_build_query(['from' => $pf, 'to' => $pt] + $branchQ)) ?>"><?= e($label) ?></a>
+    <a class="btn btn-sm <?= $activePreset === $label ? 'btn-warning' : 'btn-outline-dark' ?>"
+       href="<?= url($action) . '?' . e(http_build_query(['from' => $pf, 'to' => $pt] + $branchQ)) ?>">
+      <?php if ($label === 'Hôm nay'): ?><i class="bi bi-sun"></i>
+      <?php elseif ($label === '7 ngày qua'): ?><i class="bi bi-calendar-week"></i>
+      <?php elseif (strpos($label, 'Tháng') === 0): ?><i class="bi bi-calendar-month"></i>
+      <?php else: ?><i class="bi bi-calendar3"></i><?php endif; ?>
+      <?= e($label) ?>
+    </a>
   <?php endforeach; ?>
 </div>
 <div class="text-muted small mb-3">Kỳ báo cáo: <strong><?= e(date('d/m/Y', strtotime($f))) ?> - <?= e(date('d/m/Y', strtotime($t))) ?></strong>

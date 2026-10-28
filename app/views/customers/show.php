@@ -5,7 +5,8 @@ $cid = (int)$c['id'];
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <div>
     <h1 class="h3 m-0"><?= e($c['full_name']) ?> <span class="badge bg-<?= $badgeCls ?> fs-6"><?= e($tier['name']) ?></span></h1>
-    <div class="text-muted"><i class="bi bi-telephone"></i> <?= e($c['phone']) ?> · khách từ <?= e(date('d/m/Y', strtotime($c['created_at']))) ?></div>
+    <div class="text-muted"><i class="bi bi-telephone"></i> <?= e($c['phone']) ?> · khách từ <?= e(date('d/m/Y', strtotime($c['created_at']))) ?>
+      <?= (int)$c['status'] ? '<span class="badge bg-success">Hoạt động</span>' : '<span class="badge bg-secondary">Đã lưu trữ</span>' ?></div>
   </div>
   <div class="d-flex gap-2">
     <?php if (has_role('admin', 'manager')): ?><a class="btn btn-outline-secondary" href="<?= url('customers/edit/' . $cid) ?>">Sửa hồ sơ</a><?php endif; ?>
@@ -13,7 +14,34 @@ $cid = (int)$c['id'];
   </div>
 </div>
 
-<?php if (!$on): ?><div class="alert alert-warning">Chưa bật tính năng điểm thưởng (chạy <code>migration_giai_doan_8c.sql</code>).</div><?php endif; ?>
+<?php if (has_role('admin', 'manager')): ?>
+<div class="card card-body mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div><strong>Trạng thái hồ sơ:</strong> <?= (int)$c['status'] ? 'Đang hoạt động' : 'Đã lưu trữ' ?>
+      <div class="small text-muted">Hồ sơ có đơn hàng, đặt bàn, điểm hoặc chat sẽ được lưu trữ thay vì xóa để bảo toàn lịch sử.</div></div>
+    <form method="post" action="<?= url('customers/delete/' . $cid) ?>"
+          onsubmit="return confirm('<?= (int)$c['status'] ? 'Xóa' : 'Khôi phục' ?> hồ sơ khách <?= e($c['full_name']) ?>?')">
+      <?= csrf_field() ?>
+      <button class="btn btn-sm <?= (int)$c['status'] ? 'btn-outline-danger' : 'btn-outline-success' ?>"><?= (int)$c['status'] ? 'Xóa hồ sơ' : 'Khôi phục hồ sơ' ?></button>
+    </form>
+  </div>
+</div>
+<div class="card card-body mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div><strong>Tài khoản khách hàng:</strong> <?= !(int)$c['status'] ? 'Đã lưu trữ' : (!empty($c['has_account']) ? 'Đã kích hoạt' : 'Chưa kích hoạt') ?>
+      <div class="small text-muted">Khách có thể tự đăng ký nếu chưa có hồ sơ. Hỗ trợ tạo hoặc cấp lại mật khẩu cho hồ sơ cũ qua số điện thoại.</div></div>
+    <?php if ((int)$c['status']): ?>
+      <form method="post" action="<?= url('customers/account/' . $cid) ?>" onsubmit="return confirm('Tạo hoặc cấp lại mật khẩu tạm thời cho khách này?')">
+        <?= csrf_field() ?><button class="btn btn-sm btn-outline-primary"><?= !empty($c['has_account']) ? 'Cấp lại mật khẩu' : 'Hỗ trợ đăng ký tài khoản' ?></button>
+      </form>
+    <?php else: ?>
+      <span class="small text-muted">Khôi phục hồ sơ để cấp lại mật khẩu.</span>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
+<?php if (!$on): ?><div class="alert alert-warning">Chưa bật tính năng điểm thưởng (database chưa có bảng sổ điểm khách hàng).</div><?php endif; ?>
 
 <div class="row g-3 mb-3">
   <div class="col-6 col-xl-2"><div class="card border-warning"><div class="card-body"><div class="text-muted small">Điểm hiện có</div><div class="fs-4 fw-semibold"><?= number_format($sum['balance'], 0, ',', '.') ?></div></div></div></div>

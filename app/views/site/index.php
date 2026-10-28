@@ -14,13 +14,69 @@
     <?php foreach ($featured as $m): ?>
     <div class="col-6 col-md-4 col-lg-2">
       <div class="card h-100 site-card">
-        <?php if ($m['image']): ?><img class="card-img-top" src="<?= asset($m['image']) ?>" alt="<?= e($m['name']) ?>"><?php else: ?><div class="card-img-top site-noimg"><i class="bi bi-image"></i></div><?php endif; ?>
+        <a href="<?= url('site/item/' . (int)$m['id']) ?><?= !empty($homeBranch) ? '?branch=' . (int)$homeBranch['id'] : '' ?>" aria-label="Xem chi tiết <?= e($m['name']) ?>">
+          <?php if ($m['image']): ?><img class="card-img-top" src="<?= asset($m['image']) ?>" alt="<?= e($m['name']) ?>"><?php else: ?><div class="card-img-top site-noimg"><i class="bi bi-image"></i></div><?php endif; ?>
+        </a>
         <div class="card-body p-2"><div class="fw-semibold small"><?= e($m['name']) ?></div><div class="text-success small"><?= money($m['base_price']) ?></div></div>
       </div>
     </div>
     <?php endforeach; ?>
   </div>
-  <div class="mt-3"><a href="<?= url('site/menu') ?>">Xem toàn bộ thực đơn &raquo;</a></div>
+  <?php endif; ?>
+
+  <?php if ($groups): ?>
+  <section class="mt-5" aria-labelledby="home-menu-title">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+      <div>
+        <h2 class="h4 mb-1" id="home-menu-title">Thực đơn theo danh mục</h2>
+        <?php if ($homeBranch): ?><div class="small text-muted"><i class="bi bi-shop"></i> Giá tại <?= e($homeBranch['name']) ?></div><?php endif; ?>
+      </div>
+      <?php if ($homeBranch): ?>
+        <a class="btn btn-warning" href="<?= url('site/menu/' . (int)$homeBranch['id']) ?>">
+          <i class="bi bi-journal-text me-1"></i> Xem toàn bộ thực đơn <i class="bi bi-arrow-right ms-1"></i>
+        </a>
+      <?php endif; ?>
+    </div>
+
+    <nav class="d-flex flex-wrap gap-2 mb-4" aria-label="Danh mục thực đơn">
+      <?php foreach ($groups as $categoryId => $group): ?>
+        <a class="btn btn-sm btn-outline-warning" href="#home-category-<?= (int)$categoryId ?>"><?= e($group['name']) ?></a>
+      <?php endforeach; ?>
+    </nav>
+
+    <?php foreach ($groups as $categoryId => $group): ?>
+      <section class="mb-5" id="home-category-<?= (int)$categoryId ?>">
+        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+          <h3 class="h5 mb-0"><?= e($group['name']) ?></h3>
+          <?php if ($homeBranch): ?>
+            <a class="btn btn-sm btn-outline-warning text-dark" href="<?= url('site/menu/' . (int)$homeBranch['id']) ?>#category-<?= (int)$categoryId ?>">
+              Xem danh mục <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+          <?php endif; ?>
+        </div>
+        <div class="row g-3">
+          <?php foreach ($group['items'] as $m): ?>
+            <div class="col-6 col-md-4 col-lg-3">
+              <article class="card h-100 site-card">
+                <a href="<?= url('site/item/' . (int)$m['id']) ?>?branch=<?= (int)$homeBranch['id'] ?>" aria-label="Xem chi tiết <?= e($m['name']) ?>">
+                <?php if ($m['image']): ?>
+                  <img class="card-img-top" src="<?= asset($m['image']) ?>" alt="<?= e($m['name']) ?>">
+                <?php else: ?>
+                  <div class="card-img-top site-noimg"><i class="bi bi-image"></i></div>
+                <?php endif; ?>
+                </a>
+                <div class="card-body d-flex flex-column">
+                  <h4 class="h6"><?= e($m['name']) ?></h4>
+                  <?php if ($m['description']): ?><p class="small text-muted mb-2"><?= e(mb_strimwidth($m['description'], 0, 80, '...')) ?></p><?php endif; ?>
+                  <div class="text-success fw-semibold mt-auto mb-2"><?= money($m['price']) ?></div>
+                </div>
+              </article>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </section>
+    <?php endforeach; ?>
+  </section>
   <?php endif; ?>
 
   <h2 class="h4 mt-5 mb-3">Chi nhánh</h2>

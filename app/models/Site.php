@@ -21,6 +21,17 @@ class Site
         return $st->fetch();
     }
 
+    public static function tableForOrder(int $tableId): array|false
+    {
+        $st = Database::get()->prepare(
+            'SELECT t.id, t.table_name, t.status, t.qr_token, b.id AS branch_id, b.name AS branch_name
+             FROM dining_tables t
+             JOIN branches b ON b.id = t.branch_id
+             WHERE t.id = ? AND b.status = 1');
+        $st->execute([$tableId]);
+        return $st->fetch();
+    }
+
     // Món nổi bật: bán chạy nhất, chưa có đơn nào thì theo thứ tự thêm vào
     public static function featured(int $limit = 6): array
     {
@@ -43,6 +54,35 @@ class Site
              WHERE m.status = 1 AND COALESCE(bm.is_available, 1) = 1
              ORDER BY c.sort_order, c.id, m.name');
         $st->execute([$branchId]);
+        return $st->fetchAll();
+    }
+
+    public static function item(int $itemId, int $branchId = 0): array|false
+    {
+        $st = Database::get()->prepare(
+            'SELECT m.id, m.name, m.description, m.image, m.category_id, c.name AS category_name,
+                    COALESCE(bm.price, m.base_price) AS price
+             FROM menu_items m
+             JOIN categories c ON c.id = m.category_id
+             LEFT JOIN branch_menu bm ON bm.menu_item_id = m.id AND bm.branch_id = ?
+             WHERE m.id = ? AND m.status = 1 AND COALESCE(bm.is_available, 1) = 1');
+        $st->execute([$branchId, $itemId]);
+        return $st->fetch();
+    }
+
+    public static function relatedItems(int $categoryId, int $excludeItemId, int $branchId, int $limit = 4): array
+    {
+        $st = Database::get()->prepare(
+            'SELECT m.id, m.name, m.description, m.image, c.name AS category_name,
+                    COALESCE(bm.price, m.base_price) AS price
+             FROM menu_items m
+             JOIN categories c ON c.id = m.category_id
+             LEFT JOIN branch_menu bm ON bm.menu_item_id = m.id AND bm.branch_id = ?
+             WHERE m.category_id = ? AND m.id <> ? AND m.status = 1
+                   AND COALESCE(bm.is_available, 1) = 1
+             ORDER BY m.name
+             LIMIT ' . max(1, min(12, $limit)));
+        $st->execute([$branchId, $categoryId, $excludeItemId]);
         return $st->fetchAll();
     }
 

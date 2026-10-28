@@ -55,6 +55,12 @@
     <a class="btn btn-outline-secondary" href="<?= url('users') ?>">Hủy</a>
   </div>
 </form>
+<?php if ($isEdit && !$isSelf): ?>
+<form method="post" action="<?= url('users/delete/' . (int)$user['id']) ?>" class="mt-3"
+      onsubmit="return confirm('Xóa tài khoản <?= e($user['username']) ?>? Nếu đã phát sinh dữ liệu nghiệp vụ, tài khoản sẽ bị khóa thay vì xóa hẳn.')">
+  <?= csrf_field() ?><button class="btn btn-outline-danger">Xóa tài khoản</button>
+</form>
+<?php endif; ?>
 <script>
 (function () {
   var sel = document.getElementById('role_id'), box = document.getElementById('branchBox');

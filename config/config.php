@@ -1,6 +1,7 @@
 <?php
 define('APP_NAME', 'Golden Gate');
 define('BASE_URL', '/goldengate');        // đổi nếu đặt tên thư mục khác trong htdocs
+define('PUBLIC_BASE_URL', 'http://localhost/goldengate'); // URL tuyệt đối khách dùng để quét QR; đặt IP/domain LAN khi dùng điện thoại
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'goldengate_db');

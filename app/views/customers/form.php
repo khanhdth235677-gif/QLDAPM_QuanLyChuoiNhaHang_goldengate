@@ -12,3 +12,10 @@
     <a class="btn btn-outline-secondary" href="<?= url($isEdit ? 'customers/show/' . (int)$c['id'] : 'customers') ?>">Hủy</a>
   </div>
 </form>
+<?php if ($isEdit && has_role('admin', 'manager')): ?>
+<form method="post" action="<?= url('customers/delete/' . (int)$c['id']) ?>" class="mt-3"
+      onsubmit="return confirm('<?= (int)($c['status'] ?? 1) ? 'Xóa' : 'Khôi phục' ?> hồ sơ khách <?= e($c['full_name']) ?>? Hồ sơ có lịch sử sẽ được lưu trữ.')">
+  <?= csrf_field() ?>
+  <button class="btn <?= (int)($c['status'] ?? 1) ? 'btn-outline-danger' : 'btn-outline-success' ?>"><?= (int)($c['status'] ?? 1) ? 'Xóa hồ sơ khách' : 'Khôi phục hồ sơ khách' ?></button>
+</form>
+<?php endif; ?>

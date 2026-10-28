@@ -2,20 +2,19 @@
 // Kiểm tra sức khỏe hệ thống trước khi bàn giao hoặc chạy thật. Chỉ admin
 class SystemController extends Controller
 {
-    // [tên bảng => file SQL cần chạy nếu thiếu]
+    // Các bảng phải có trong database đầy đủ của dự án.
     const TABLES = [
-        'branches' => 'goldengate_db_v2_cai_moi.sql', 'roles' => 'goldengate_db_v2_cai_moi.sql', 'users' => 'goldengate_db_v2_cai_moi.sql',
-        'employees' => 'goldengate_db_v2_cai_moi.sql', 'customers' => 'goldengate_db_v2_cai_moi.sql', 'categories' => 'goldengate_db_v2_cai_moi.sql',
-        'menu_items' => 'goldengate_db_v2_cai_moi.sql', 'branch_menu' => 'goldengate_db_v2_cai_moi.sql', 'dining_tables' => 'goldengate_db_v2_cai_moi.sql',
-        'reservations' => 'goldengate_db_v2_cai_moi.sql', 'orders' => 'goldengate_db_v2_cai_moi.sql', 'order_items' => 'goldengate_db_v2_cai_moi.sql',
-        'payments' => 'goldengate_db_v2_cai_moi.sql', 'ingredients' => 'goldengate_db_v2_cai_moi.sql', 'inventory' => 'goldengate_db_v2_cai_moi.sql',
-        'stock_movements' => 'goldengate_db_v2_cai_moi.sql', 'chat_conversations' => 'goldengate_db_v2_cai_moi.sql', 'chat_messages' => 'goldengate_db_v2_cai_moi.sql',
-        'login_attempts' => 'migration_giai_doan_3.sql', 'recipes' => 'migration_giai_doan_6b.sql', 'loyalty_ledger' => 'migration_giai_doan_8c.sql',
+        'branches', 'roles', 'users', 'employees', 'customers', 'categories', 'menu_items', 'branch_menu', 'dining_tables',
+        'reservations', 'orders', 'order_items', 'payments', 'vouchers', 'voucher_redemptions', 'ingredients', 'inventory', 'stock_movements',
+        'chat_conversations', 'chat_messages', 'login_attempts', 'recipes', 'loyalty_ledger',
     ];
-    // [bảng => [cột => file SQL cần chạy nếu thiếu]]
+    // [bảng => các cột bắt buộc]
     const COLUMNS = [
-        'users' => ['must_change_password' => 'migration_giai_doan_3.sql'],
-        'reservations' => ['source' => 'migration_giai_doan_8a.sql', 'ip' => 'migration_giai_doan_8a.sql'],
+        'users' => ['must_change_password'],
+        'customers' => ['must_change_password', 'status'],
+        'orders' => ['voucher_id'],
+        'reservations' => ['source', 'ip'],
+        'dining_tables' => ['qr_token'],
     ];
 
     public function index(): void
@@ -89,20 +88,20 @@ class SystemController extends Controller
         $db = [];
         $have = array_flip(array_map('strtolower', $pdo->query('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()')->fetchAll(PDO::FETCH_COLUMN)));
         $missingTables = [];
-        foreach (self::TABLES as $t => $file) if (!isset($have[$t])) $missingTables[$t] = $file;
+        foreach (self::TABLES as $t) if (!isset($have[$t])) $missingTables[] = $t;
         $db[] = $missingTables
-            ? $this->item('fail', 'Các bảng dữ liệu', 'Thiếu bảng: ' . implode(', ', array_keys($missingTables)) . '.', 'Chạy file SQL: ' . implode(', ', array_unique($missingTables)) . ' trong phpMyAdmin.')
+            ? $this->item('fail', 'Các bảng dữ liệu', 'Thiếu bảng: ' . implode(', ', $missingTables) . '.', 'Đối chiếu database với database/goldengate_db.sql. Không import lại schema nền lên database đang có dữ liệu.')
             : $this->item('ok', 'Các bảng dữ liệu', 'Đủ ' . count(self::TABLES) . ' bảng.');
 
         $st = $pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
         $missingCols = [];
-        foreach (self::COLUMNS as $t => $cols) foreach ($cols as $c => $file) {
+        foreach (self::COLUMNS as $t => $cols) foreach ($cols as $c) {
             $st->execute([$t, $c]);
-            if ((int)$st->fetchColumn() === 0) $missingCols[$t . '.' . $c] = $file;
+            if ((int)$st->fetchColumn() === 0) $missingCols[] = $t . '.' . $c;
         }
         $db[] = $missingCols
-            ? $this->item('fail', 'Các cột bổ sung', 'Thiếu cột: ' . implode(', ', array_keys($missingCols)) . '.', 'Chạy file SQL: ' . implode(', ', array_unique($missingCols)) . ' trong phpMyAdmin.')
-            : $this->item('ok', 'Các cột bổ sung', 'Đủ (must_change_password, reservations.source, reservations.ip).');
+            ? $this->item('fail', 'Các cột bổ sung', 'Thiếu cột: ' . implode(', ', $missingCols) . '.', 'Đối chiếu cấu trúc với database/goldengate_db.sql. Sao lưu trước khi thay đổi database hiện có.')
+            : $this->item('ok', 'Các cột bổ sung', 'Đủ cột đổi mật khẩu, lưu trữ khách, đặt bàn online, mã QR bàn và voucher.');
 
         $counts = [];
         foreach (['branches' => 'chi nhánh', 'users' => 'tài khoản', 'menu_items' => 'món', 'dining_tables' => 'bàn', 'orders' => 'đơn', 'customers' => 'khách'] as $t => $label) {
@@ -112,7 +111,7 @@ class SystemController extends Controller
 
         $demoUsers = isset($have['users']) ? (int)$pdo->query("SELECT COUNT(*) FROM users WHERE username LIKE 'demo\\_%'")->fetchColumn() : 0;
         $db[] = $demoUsers
-            ? $this->item('warn', 'Dữ liệu demo', 'Còn ' . $demoUsers . ' tài khoản demo (demo_...) và đơn hàng mẫu.', 'Trước khi chạy thật, chạy xoa_du_lieu_demo.sql để dọn dữ liệu thử nghiệm.')
+            ? $this->item('warn', 'Dữ liệu demo', 'Còn ' . $demoUsers . ' tài khoản demo (demo_...) và đơn hàng mẫu.', 'Xóa dữ liệu thử nghiệm qua quy trình quản trị phù hợp trước khi chạy thật.')
             : $this->item('ok', 'Dữ liệu demo', 'Không có dữ liệu demo.');
         $groups[] = ['title' => 'Cơ sở dữ liệu', 'items' => $db];
 

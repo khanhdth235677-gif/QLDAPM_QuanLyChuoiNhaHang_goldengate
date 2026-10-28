@@ -50,6 +50,24 @@
         <?php endif; ?>
       </div>
 
+      <?php if (!empty($order['customer_id'])): ?>
+      <div class="border rounded p-3 mb-3">
+        <label class="form-label fw-semibold" for="voucher_code"><i class="bi bi-ticket-perforated"></i> Mã voucher</label>
+        <input class="form-control text-uppercase" id="voucher_code" name="voucher_code" list="availableVouchers" maxlength="40" placeholder="Nhập mã khách cung cấp">
+        <datalist id="availableVouchers">
+          <?php foreach ($availableVouchers as $v): ?><option value="<?= e($v['code']) ?>"><?= e($v['description']) ?></option><?php endforeach; ?>
+        </datalist>
+        <div class="form-text" id="voucherHint">Mỗi đơn áp dụng tối đa một voucher; không cộng dồn với chiết khấu thủ công hoặc đổi điểm.</div>
+        <?php if ($availableVouchers): ?>
+          <div class="small text-muted mt-2">Voucher hiện khả dụng cho khách:
+            <?= implode(', ', array_map(static fn($v) => e($v['code']), $availableVouchers)) ?>.
+          </div>
+        <?php endif; ?>
+      </div>
+      <?php else: ?>
+      <div class="alert alert-info py-2">Muốn dùng voucher, hãy gắn hồ sơ khách vào đơn trước khi thanh toán. <a href="<?= url('orders/show/' . $oid) ?>">Quay lại gọi món</a>.</div>
+      <?php endif; ?>
+
       <?php if (!empty($loyal)): $tc = $loyal['tier']['cls'] . (in_array($loyal['tier']['cls'], ['warning', 'info'], true) ? ' text-dark' : ''); ?>
       <div class="border rounded p-3 mb-3 bg-light">
         <div class="d-flex justify-content-between align-items-center">
@@ -64,7 +82,7 @@
           </div>
           <div class="small text-muted mt-1">Đơn này cộng khoảng <strong id="earnHint">0</strong> điểm.</div>
         <?php else: ?>
-          <div class="small text-muted mt-1">Chưa bật tính năng điểm (chạy migration_giai_doan_8c.sql).</div>
+          <div class="small text-muted mt-1">Chưa bật tính năng điểm (database chưa có bảng sổ điểm khách hàng).</div>
         <?php endif; ?>
       </div>
       <?php endif; ?>
@@ -112,27 +130,68 @@
   var sub = <?= (int)$subtotal ?>;
   var f = document.getElementById('payForm');
   var L = <?= json_js(!empty($loyal) && $loyal['enabled'] ? $loyal['js'] : null) ?>;
+  var voucherInput = document.getElementById('voucher_code');
+  var availableVouchers = <?= json_js(array_map(static function ($v) {
+    return [
+      'code' => $v['code'], 'type' => $v['discount_type'], 'value' => (int)$v['discount_value'],
+      'min' => (int)$v['min_subtotal'], 'max' => $v['max_discount'] === null ? null : (int)$v['max_discount'],
+    ];
+  }, $availableVouchers)) ?>;
+  var canUsePoints = !!(L && f.use_points && !f.use_points.disabled);
   function digits(v) { return parseInt(String(v).replace(/\D/g, ''), 10) || 0; }
   function fmt(n) { return n.toLocaleString('vi-VN') + ' ₫'; }
   function calc() {
     var mode = f.discount_mode.value, val = digits(f.discount_value.value), rate = parseInt(f.vat_rate.value, 10) || 0;
     var d = 0;
-    if (mode === 'percent') d = Math.round(sub * Math.min(val, 100) / 100);
-    else if (mode === 'amount') d = val;
-    var pd = (L && f.use_points) ? digits(f.use_points.value) * L.pointValue : 0;
+    var code = voucherInput ? voucherInput.value.trim().toUpperCase() : '';
+    var voucher = availableVouchers.find(function (item) { return item.code === code; });
+    var pd = (L && f.use_points && !f.use_points.disabled) ? digits(f.use_points.value) * L.pointValue : 0;
+    if (voucher && sub >= voucher.min) {
+      d = voucher.type === 'percent' ? Math.round(sub * voucher.value / 100) : voucher.value;
+      if (voucher.max !== null) d = Math.min(d, voucher.max);
+      pd = 0;
+    } else {
+      if (mode === 'percent') d = Math.round(sub * Math.min(val, 100) / 100);
+      else if (mode === 'amount') d = val;
+    }
     d = Math.max(0, Math.min(d + pd, sub));
     var base = sub - d, vat = Math.round(base * rate / 100), total = base + vat;
     document.getElementById('sumDiscount').textContent = d > 0 ? '- ' + fmt(d) : fmt(0);
     document.getElementById('sumVat').textContent = fmt(vat);
     document.getElementById('sumTotal').textContent = fmt(total);
     if (L && document.getElementById('earnHint')) document.getElementById('earnHint').textContent = Math.floor(total / L.vndPerPoint * L.mult);
+    if (voucherInput) {
+      var hint = document.getElementById('voucherHint');
+      hint.textContent = code && !voucher ? 'Mã này không khả dụng cho khách hoặc chưa được liệt kê; hệ thống sẽ kiểm tra lại khi thanh toán.'
+        : (voucher && sub < voucher.min ? 'Đơn chưa đạt mức tối thiểu của voucher.' : (voucher ? 'Dự kiến giảm ' + fmt(d) + '; các hình thức giảm khác sẽ bị tắt.' : 'Voucher không cộng dồn với chiết khấu thủ công hoặc đổi điểm.'));
+    }
     var cash = f.method.value === 'cash';
     document.getElementById('cashBox').style.display = cash ? '' : 'none';
     document.getElementById('changeText').textContent = fmt(Math.max(0, digits(f.cash_received.value) - total));
   }
   f.discount_mode.addEventListener('change', function () {
+    if (f.discount_mode.value !== 'none' && voucherInput) {
+      voucherInput.value = '';
+      if (f.use_points && canUsePoints) f.use_points.disabled = false;
+    }
     f.discount_value.disabled = f.discount_mode.value === 'none';
     if (f.discount_value.disabled) f.discount_value.value = '';
+    calc();
+  });
+  if (voucherInput) voucherInput.addEventListener('input', function () {
+    var hasCode = voucherInput.value.trim() !== '';
+    if (hasCode) {
+      f.discount_mode.value = 'none';
+      f.discount_value.value = '';
+      f.discount_value.disabled = true;
+      if (f.use_points) { f.use_points.value = ''; f.use_points.disabled = true; }
+    } else if (f.use_points && canUsePoints) {
+      f.use_points.disabled = false;
+    }
+    calc();
+  });
+  if (f.use_points) f.use_points.addEventListener('input', function () {
+    if (digits(f.use_points.value) > 0 && voucherInput) voucherInput.value = '';
     calc();
   });
   ['input', 'change'].forEach(function (ev) { f.addEventListener(ev, calc); });

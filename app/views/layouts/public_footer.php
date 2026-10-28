@@ -6,6 +6,7 @@
       <a href="<?= url('site/menu') ?>">Thực đơn</a> ·
       <a href="<?= url('site/book') ?>">Đặt bàn</a> ·
       <a href="<?= url('site/track') ?>">Tra cứu đặt bàn</a> ·
+      <?php if (customer_logged_in()): ?><a href="<?= url('customer/account') ?>">Tài khoản khách hàng</a> · <?php else: ?><a href="<?= url('customer/login') ?>">Đăng nhập khách hàng</a> · <a href="<?= url('customer/register') ?>">Đăng ký</a> · <?php endif; ?>
       <?php if (is_logged_in()): ?><a href="<?= url('dashboard') ?>">Vào trang quản lý</a><?php else: ?><a href="<?= url('auth/login') ?>">Nhân viên đăng nhập</a><?php endif; ?>
     </span>
   </div>

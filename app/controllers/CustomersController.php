@@ -19,7 +19,7 @@ class CustomersController extends Controller
         foreach (Loyalty::search($q, $sort) as $r) {
             $r['tier'] = Loyalty::tier((int)$r['earned']);
             if ($tierFilter >= 0 && (LOYALTY_TIERS[$tierFilter][0] ?? null) !== $r['tier']['name']) continue;
-            $points += (int)$r['balance'];
+            if ((int)$r['status']) $points += (int)$r['balance'];
             $rows[] = $r;
         }
         $this->view('customers/index', ['title' => 'Khách hàng', 'rows' => $rows, 'q' => $q, 'sort' => $sort, 'tierFilter' => $tierFilter,
@@ -38,8 +38,40 @@ class CustomersController extends Controller
         $this->view('customers/show', [
             'title' => 'Khách - ' . $c['full_name'], 'c' => $c, 'sum' => $sum, 'tier' => Loyalty::tier($sum['earned']), 'on' => Loyalty::enabled(),
             'favorites' => Loyalty::topItems($cid, 10), 'orders' => Loyalty::recentOrders($cid, 20), 'ledger' => Loyalty::ledger($cid, 50),
-            'canAdjust' => has_role('admin', 'manager'), 'myBranch' => (int)($u['branch_id'] ?? 0), 'isAdmin' => $u['role'] === 'admin',
+            'canAdjust' => has_role('admin', 'manager') && (int)$c['status'] === 1,
+            'myBranch' => (int)($u['branch_id'] ?? 0), 'isAdmin' => $u['role'] === 'admin',
         ]);
+    }
+
+    public function account(string $id = ''): void
+    {
+        $this->requireRole('admin', 'manager');
+        $this->postOnly('customers/show/' . (int)$id);
+        $c = Customer::find((int)$id);
+        if (!$c) $this->forbidden();
+        $temporaryPassword = random_password(12);
+        Customer::setAccountPassword((int)$id, $temporaryPassword, true);
+        flash('success', 'Tài khoản khách đã được kích hoạt/cấp lại. Số điện thoại đăng nhập: ' . $c['phone'] . ' · Mật khẩu tạm thời (chỉ hiển thị lần này): ' . $temporaryPassword);
+        redirect('customers/show/' . (int)$id);
+    }
+
+    public function delete(string $id = ''): void
+    {
+        $this->requireRole('admin', 'manager');
+        $this->postOnly('customers');
+        $c = Customer::find((int)$id);
+        if (!$c) $this->forbidden();
+
+        if (!(int)$c['status']) {
+            Customer::setStatus((int)$id, 1);
+            flash('success', 'Đã khôi phục hồ sơ khách ' . $c['full_name'] . '.');
+        } else {
+            $deleted = Customer::deleteOrArchive((int)$id);
+            flash('success', $deleted
+                ? 'Đã xóa hồ sơ khách ' . $c['full_name'] . ' vì chưa có đơn hàng hoặc dữ liệu liên quan.'
+                : 'Hồ sơ khách ' . $c['full_name'] . ' có lịch sử liên quan nên đã được lưu trữ, lịch sử và điểm vẫn được giữ.');
+        }
+        redirect('customers');
     }
 
     public function create(): void
@@ -51,9 +83,13 @@ class CustomersController extends Controller
             [$name, $phone, $err] = $this->read(null);
             $c = ['full_name' => trim($_POST['full_name'] ?? ''), 'phone' => trim($_POST['phone'] ?? '')];
             if (!$err) {
-                $id = Customer::findOrCreate($name, $phone);
-                flash('success', 'Đã thêm khách ' . $name . '.');
-                redirect('customers/show/' . $id);
+                try {
+                    $id = Customer::findOrCreate($name, $phone);
+                    flash('success', 'Đã thêm khách ' . $name . '.');
+                    redirect('customers/show/' . $id);
+                } catch (DomainException $e) {
+                    $err = $e->getMessage();
+                }
             }
             flash('error', $err);
         }
@@ -91,7 +127,7 @@ class CustomersController extends Controller
         $points = (int)($_POST['points'] ?? 0);
         $note = trim($_POST['note'] ?? '');
         $err = null;
-        if (!Loyalty::enabled())                 $err = 'Chưa bật tính năng điểm (cần chạy migration_giai_doan_8c.sql).';
+        if (!Loyalty::enabled())                 $err = 'Chưa bật tính năng điểm (database chưa có bảng sổ điểm khách hàng).';
         elseif ($points === 0 || abs($points) > 100000) $err = 'Số điểm phải khác 0 và không quá 100.000.';
         elseif (mb_strlen($note) < 3 || mb_strlen($note) > 200) $err = 'Vui lòng ghi lý do điều chỉnh (3 đến 200 ký tự).';
         else $err = Loyalty::adjust((int)$id, $points, $note, (int)auth_user()['id']);

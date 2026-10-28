@@ -4,7 +4,7 @@
 </div>
 
 <?php if (!$on): ?>
-  <div class="alert alert-warning">Chưa bật tính năng điểm thưởng. Hãy chạy <code>migration_giai_doan_8c.sql</code> trong phpMyAdmin. Danh sách khách vẫn xem được nhưng điểm hiện bằng 0.</div>
+  <div class="alert alert-warning">Chưa bật tính năng điểm thưởng. Hãy kiểm tra cấu trúc database có bảng sổ điểm khách hàng. Danh sách khách vẫn xem được nhưng điểm hiện bằng 0.</div>
 <?php endif; ?>
 
 <div class="row g-3 mb-3">
@@ -31,21 +31,30 @@
 
 <div class="table-responsive">
 <table class="table table-hover align-middle bg-white">
-  <thead class="table-light"><tr><th>Khách</th><th>Điện thoại</th><th>Hạng</th><th class="text-end">Điểm hiện có</th><th class="text-end">Lượt ghé</th><th class="text-end">Tổng chi tiêu</th><th>Lần cuối</th><th></th></tr></thead>
+  <thead class="table-light"><tr><th>Khách</th><th>Điện thoại</th><th>Trạng thái</th><th>Hạng</th><th class="text-end">Điểm hiện có</th><th class="text-end">Lượt ghé</th><th class="text-end">Tổng chi tiêu</th><th>Lần cuối</th><th></th></tr></thead>
   <tbody>
   <?php foreach ($rows as $r): ?>
     <tr>
       <td class="fw-semibold"><?= e($r['full_name']) ?></td>
       <td><?= e($r['phone']) ?></td>
+      <td><?= (int)$r['status'] ? '<span class="badge bg-success">Hoạt động</span>' : '<span class="badge bg-secondary">Đã lưu trữ</span>' ?></td>
       <td><span class="badge bg-<?= e($r['tier']['cls']) ?> <?= in_array($r['tier']['cls'], ['warning', 'info'], true) ? 'text-dark' : '' ?>"><?= e($r['tier']['name']) ?></span></td>
       <td class="text-end fw-semibold"><?= number_format((int)$r['balance'], 0, ',', '.') ?></td>
       <td class="text-end"><?= (int)$r['visits'] ?></td>
       <td class="text-end"><?= money($r['spent']) ?></td>
       <td class="small"><?= $r['last_visit'] ? e(date('d/m/Y', strtotime($r['last_visit']))) : '<span class="text-muted">Chưa có</span>' ?></td>
-      <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="<?= url('customers/show/' . (int)$r['id']) ?>">Xem</a></td>
+      <td class="text-end text-nowrap">
+        <a class="btn btn-sm btn-outline-primary" href="<?= url('customers/show/' . (int)$r['id']) ?>">Xem</a>
+        <?php if (has_role('admin', 'manager')): ?>
+          <form method="post" action="<?= url('customers/delete/' . (int)$r['id']) ?>" class="d-inline"
+                onsubmit="return confirm('<?= (int)$r['status'] ? 'Xóa' : 'Khôi phục' ?> hồ sơ khách <?= e($r['full_name']) ?>? <?= (int)$r['status'] ? 'Nếu có lịch sử, hồ sơ sẽ được lưu trữ.' : '' ?>')">
+            <?= csrf_field() ?><button class="btn btn-sm <?= (int)$r['status'] ? 'btn-outline-danger' : 'btn-outline-success' ?>"><?= (int)$r['status'] ? 'Xóa' : 'Khôi phục' ?></button>
+          </form>
+        <?php endif; ?>
+      </td>
     </tr>
   <?php endforeach; ?>
-  <?php if (!$rows): ?><tr><td colspan="8" class="text-center text-muted py-4">Không có khách nào.</td></tr><?php endif; ?>
+  <?php if (!$rows): ?><tr><td colspan="9" class="text-center text-muted py-4">Không có khách nào.</td></tr><?php endif; ?>
   </tbody>
 </table>
 </div>

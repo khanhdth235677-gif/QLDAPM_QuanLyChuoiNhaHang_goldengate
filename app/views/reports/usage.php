@@ -4,7 +4,7 @@
 </div>
 
 <?php if (!$recipesOk): ?>
-  <div class="alert alert-warning">Chưa có bảng công thức nên cột "Dự kiến theo công thức" tạm bằng 0. Hãy chạy <code>migration_giai_doan_6b.sql</code> (xem hướng dẫn giai đoạn 6B).</div>
+  <div class="alert alert-warning">Chưa có bảng công thức nên cột "Dự kiến theo công thức" tạm bằng 0. Hãy kiểm tra cấu trúc database có bảng công thức món.</div>
 <?php endif; ?>
 
 <div class="table-responsive">

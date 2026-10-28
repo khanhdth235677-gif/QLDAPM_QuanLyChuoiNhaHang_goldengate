@@ -62,6 +62,24 @@ class BranchesController extends Controller
         redirect('branches');
     }
 
+    public function delete(string $id = ''): void
+    {
+        $this->requireRole('admin');
+        $this->postOnly('branches');
+        $branch = Branch::find((int)$id);
+        if (!$branch) $this->forbidden();
+        if ((int)$branch['status'] === 1 && Branch::activeCount() <= 1) {
+            flash('error', 'Không thể xóa chi nhánh đang hoạt động cuối cùng.');
+            redirect('branches');
+        }
+
+        $deleted = Branch::deleteOrDeactivate((int)$id);
+        flash('success', $deleted
+            ? 'Đã xóa chi nhánh ' . $branch['name'] . ' vì chưa có dữ liệu phát sinh.'
+            : 'Chi nhánh ' . $branch['name'] . ' có dữ liệu liên quan nên đã được ngừng hoạt động để giữ lịch sử.');
+        redirect('branches');
+    }
+
     private function read(): array
     {
         $name    = trim($_POST['name'] ?? '');

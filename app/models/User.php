@@ -105,6 +105,44 @@ class User
         Database::get()->prepare('UPDATE users SET status = ? WHERE id = ?')->execute([$status, $id]);
     }
 
+    public static function deleteOrDeactivate(int $id): bool
+    {
+        $pdo = Database::get();
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE');
+            $st->execute([$id]);
+            if (!$st->fetchColumn()) {
+                $pdo->rollBack();
+                return false;
+            }
+
+            $st = $pdo->prepare(
+                'SELECT
+                   EXISTS(SELECT 1 FROM employees WHERE user_id = ?) OR
+                   EXISTS(SELECT 1 FROM orders WHERE created_by = ?) OR
+                   EXISTS(SELECT 1 FROM stock_movements WHERE created_by = ?) OR
+                   EXISTS(SELECT 1 FROM vouchers WHERE created_by = ?) OR
+                   EXISTS(SELECT 1 FROM chat_conversations WHERE assigned_user_id = ?) OR
+                   EXISTS(SELECT 1 FROM chat_messages WHERE sender_user_id = ?) OR
+                   EXISTS(SELECT 1 FROM loyalty_ledger WHERE created_by = ?)'
+            );
+            $st->execute(array_fill(0, 7, $id));
+            $hasHistory = (bool)$st->fetchColumn();
+
+            if ($hasHistory) {
+                $pdo->prepare('UPDATE users SET status = 0 WHERE id = ?')->execute([$id]);
+            } else {
+                $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+            }
+            $pdo->commit();
+            return !$hasHistory;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+    }
+
     public static function setPassword(int $id, string $plain, bool $mustChange): void
     {
         Database::get()->prepare('UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?')

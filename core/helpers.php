@@ -48,6 +48,8 @@ function flash(string $key, ?string $msg = null): ?string {
 // ----- Xác thực, phân quyền -----
 function auth_user(): ?array { return $_SESSION['user'] ?? null; }
 function is_logged_in(): bool { return isset($_SESSION['user']); }
+function customer_user(): ?array { return $_SESSION['customer'] ?? null; }
+function customer_logged_in(): bool { return isset($_SESSION['customer']['id']); }
 function has_role(string ...$roles): bool {
     $u = auth_user();
     return $u !== null && in_array($u['role'], $roles, true);

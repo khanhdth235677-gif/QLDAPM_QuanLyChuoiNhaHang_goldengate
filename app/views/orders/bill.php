@@ -62,6 +62,7 @@ $sumLines = 0; foreach ($lines as $l) $sumLines += (int)$l['quantity'] * (int)$l
     <?php if ($isPaid): ?>
       <tr><td>Tạm tính</td><td class="r"><?= money($order['subtotal']) ?></td></tr>
       <?php if ((int)$order['discount'] > 0): ?><tr><td>Giảm giá</td><td class="r">- <?= money($order['discount']) ?></td></tr><?php endif; ?>
+      <?php if (!empty($order['voucher_code'])): ?><tr><td>Voucher</td><td class="r"><?= e($order['voucher_code']) ?></td></tr><?php endif; ?>
       <tr><td>VAT (<?= $pct ?>%)</td><td class="r"><?= money($order['vat']) ?></td></tr>
       <tr class="tot"><td>TỔNG CỘNG</td><td class="r"><?= money($order['total']) ?></td></tr>
       <?php if ($method): ?><tr><td>Thanh toán</td><td class="r"><?= e($method) ?></td></tr><?php endif; ?>

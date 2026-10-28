@@ -100,6 +100,35 @@ class UsersController extends Controller
         redirect('users');
     }
 
+    public function delete(string $id = ''): void
+    {
+        $this->requireRole('admin', 'manager');
+        $this->postOnly('users');
+        $actor = auth_user();
+        $target = User::findById((int)$id);
+        if (!$target || !User::canManage($actor, $target)) $this->forbidden();
+        if ((int)$target['id'] === (int)$actor['id']) {
+            flash('error', 'Bạn không thể xóa tài khoản đang đăng nhập.');
+            redirect('users');
+        }
+
+        if ($target['role_code'] === 'admin' && (int)$target['status'] === 1) {
+            $activeAdmins = (int)Database::get()->query(
+                "SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id WHERE r.code = 'admin' AND u.status = 1"
+            )->fetchColumn();
+            if ($activeAdmins <= 1) {
+                flash('error', 'Không thể xóa tài khoản admin đang hoạt động cuối cùng.');
+                redirect('users');
+            }
+        }
+
+        $deleted = User::deleteOrDeactivate((int)$target['id']);
+        flash('success', $deleted
+            ? 'Đã xóa tài khoản ' . $target['username'] . '.'
+            : 'Tài khoản ' . $target['username'] . ' đã có dữ liệu liên quan nên được khóa để giữ lịch sử.');
+        redirect('users');
+    }
+
     public function resetpassword(string $id = ''): void
     {
         $this->requireRole('admin', 'manager');

@@ -6,7 +6,7 @@ class Loyalty
 {
     private static ?bool $on = null;
 
-    // Đã chạy migration_giai_doan_8c.sql (có bảng điểm) chưa? Chưa thì tính năng điểm tự tắt, không làm lỗi hệ thống
+    // Database cũ có thể chưa có bảng điểm; khi đó tắt riêng tính năng này.
     public static function enabled(): bool
     {
         if (self::$on === null) {
@@ -175,7 +175,7 @@ class Loyalty
         $ledger = self::enabled()
             ? "(SELECT customer_id, SUM(points) AS balance, SUM(CASE WHEN type = 'earn' THEN points ELSE 0 END) AS earned FROM loyalty_ledger GROUP BY customer_id)"
             : "(SELECT id AS customer_id, 0 AS balance, 0 AS earned FROM customers)";
-        $sql = "SELECT c.id, c.full_name, c.phone, c.created_at,
+        $sql = "SELECT c.id, c.full_name, c.phone, c.created_at, c.status,
                        COALESCE(s.visits, 0) AS visits, COALESCE(s.spent, 0) AS spent, s.last_visit,
                        COALESCE(l.balance, 0) AS balance, COALESCE(l.earned, 0) AS earned
                 FROM customers c

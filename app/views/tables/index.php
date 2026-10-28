@@ -46,6 +46,7 @@ $label = TablesController::STATUS;
       <td><span class="badge bg-<?= $badge[$t['status']] ?> <?= $t['status'] === 'reserved' ? 'text-dark' : '' ?>"><?= e($label[$t['status']]) ?></span></td>
       <?php if ($canEdit): ?>
       <td class="text-end text-nowrap">
+        <a class="btn btn-sm btn-outline-success" href="<?= url('tables/qr/' . $id) ?>"><i class="bi bi-qr-code"></i> Mã QR</a>
         <a class="btn btn-sm btn-outline-primary" href="<?= url('tables/edit/' . $id) ?>">Sửa</a>
         <form method="post" action="<?= url('tables/delete/' . $id) ?>" class="d-inline" onsubmit="return confirm('Xóa bàn <?= e($t['table_name']) ?>?')">
           <?= csrf_field() ?><button class="btn btn-sm btn-outline-danger">Xóa</button>

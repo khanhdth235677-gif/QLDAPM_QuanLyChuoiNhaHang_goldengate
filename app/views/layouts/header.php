@@ -16,6 +16,7 @@ $menu = [
     ['floor',     'Sơ đồ bàn',           'bi-diagram-3',    true,  ['admin','manager','cashier','waiter']],
     ['reservations','Đặt bàn',           'bi-calendar-check',true, ['admin','manager','cashier','waiter']],
     ['customers', 'Khách hàng',          'bi-person-heart', true,  ['admin','manager','cashier']],
+    ['vouchers',  'Voucher',             'bi-ticket-perforated', true, ['admin','manager']],
     ['users',     'Tài khoản',           'bi-person-gear',  true,  ['admin','manager']],
     ['branches',  'Chi nhánh',           'bi-shop',         true,  ['admin']],
     ['menu',      'Thực đơn',            'bi-journal-text', true,  ['admin','manager']],
@@ -43,13 +44,14 @@ $menu = [
 <nav class="navbar navbar-dark bg-dark sticky-top">
   <div class="container-fluid">
     <button class="btn btn-outline-light d-md-none me-2" data-bs-toggle="offcanvas" data-bs-target="#sidebar"><i class="bi bi-list"></i></button>
-    <a class="navbar-brand me-auto" href="<?= url('dashboard') ?>"><i class="bi bi-gem text-warning"></i> <?= e(APP_NAME) ?></a>
+    <a class="navbar-brand me-auto" href="<?= url('site') ?>"><img src="<?= asset('images/logo_goldengate.png') ?>" alt="<?= e(APP_NAME) ?>" width="30" height="30" class="me-1 align-middle"> <?= e(APP_NAME) ?></a>
     <div class="dropdown">
       <button class="btn btn-sm btn-outline-light dropdown-toggle" data-bs-toggle="dropdown">
         <i class="bi bi-person-circle"></i> <?= e($u['full_name']) ?>
       </button>
       <ul class="dropdown-menu dropdown-menu-end">
         <li><span class="dropdown-item-text small text-muted"><?= e($u['role_name']) ?><?= $u['branch_name'] ? ' · ' . e($u['branch_name']) : '' ?></span></li>
+        <li><a class="dropdown-item" href="<?= url('site') ?>"><i class="bi bi-house"></i> Trang chủ khách hàng</a></li>
         <li><a class="dropdown-item" href="<?= url('account/password') ?>"><i class="bi bi-key"></i> Đổi mật khẩu</a></li>
         <li><hr class="dropdown-divider"></li>
         <li>

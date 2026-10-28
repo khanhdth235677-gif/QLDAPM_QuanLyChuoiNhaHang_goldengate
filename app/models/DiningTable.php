@@ -15,6 +15,23 @@ class DiningTable
         return $st->fetch();
     }
 
+    public static function ensureQrToken(int $id): string
+    {
+        $st = Database::get()->prepare('SELECT qr_token FROM dining_tables WHERE id = ?');
+        $st->execute([$id]);
+        $token = $st->fetchColumn();
+        if ($token === false) throw new RuntimeException('Không tìm thấy bàn.');
+        if (is_string($token) && $token !== '') return $token;
+
+        $token = bin2hex(random_bytes(32));
+        Database::get()->prepare('UPDATE dining_tables SET qr_token = ? WHERE id = ? AND qr_token IS NULL')
+            ->execute([$token, $id]);
+        $st->execute([$id]);
+        $saved = $st->fetchColumn();
+        if (!is_string($saved) || $saved === '') throw new RuntimeException('Không tạo được mã truy cập QR cho bàn.');
+        return $saved;
+    }
+
     public static function nameExists(int $branchId, string $name, ?int $exceptId = null): bool
     {
         $st = Database::get()->prepare('SELECT COUNT(*) FROM dining_tables WHERE branch_id = ? AND table_name = ? AND id <> ?');

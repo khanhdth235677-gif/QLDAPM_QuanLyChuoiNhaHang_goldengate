@@ -28,6 +28,11 @@
             <?= csrf_field() ?>
             <button class="btn btn-sm btn-outline-danger">Đặt lại MK</button>
           </form>
+          <form method="post" action="<?= url('users/delete/' . $id) ?>" class="d-inline"
+                onsubmit="return confirm('Xóa tài khoản <?= e($r['username']) ?>? Nếu đã phát sinh dữ liệu nghiệp vụ, tài khoản sẽ bị khóa thay vì xóa hẳn.')">
+            <?= csrf_field() ?>
+            <button class="btn btn-sm btn-outline-danger">Xóa</button>
+          </form>
         <?php endif; ?>
       </td>
     </tr>

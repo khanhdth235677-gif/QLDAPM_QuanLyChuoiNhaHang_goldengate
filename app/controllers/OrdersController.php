@@ -7,6 +7,7 @@ require_once APP_PATH . '/models/Branch.php';
 require_once APP_PATH . '/models/Inventory.php';
 require_once APP_PATH . '/models/Customer.php';
 require_once APP_PATH . '/models/Loyalty.php';
+require_once APP_PATH . '/models/Voucher.php';
 
 // Gọi món, thanh toán, in hóa đơn
 class OrdersController extends Controller
@@ -170,6 +171,7 @@ class OrdersController extends Controller
             $method = $_POST['method'] ?? '';
             $cash   = (int)preg_replace('/\D/', '', (string)($_POST['cash_received'] ?? ''));
             $points = (int)preg_replace('/\D/', '', (string)($_POST['use_points'] ?? ''));
+            $voucherCode = strtoupper(trim((string)($_POST['voucher_code'] ?? '')));
 
             $err = null;
             if (!in_array($mode, ['none', 'percent', 'amount'], true)) $err = 'Kiểu giảm giá không hợp lệ.';
@@ -179,12 +181,13 @@ class OrdersController extends Controller
 
             if (!$err) {
                 $max = has_role('admin', 'manager') ? null : MAX_CASHIER_DISCOUNT_PERCENT;
-                [$err, $res] = Order::pay($oid, $mode, $mode === 'none' ? 0 : $value, $vat, $method, $cash, $max, $points, (int)auth_user()['id']);
+                [$err, $res] = Order::pay($oid, $mode, $mode === 'none' ? 0 : $value, $vat, $method, $cash, $max, $points, (int)auth_user()['id'], $voucherCode);
             }
             if ($err) { flash('error', $err); redirect('orders/pay/' . $oid); }
 
             $msg = 'Đã thanh toán bàn ' . $order['table_name'] . ': ' . money($res['total']) . '.';
             if ($res['change'] > 0) $msg .= ' Tiền thối lại: ' . money($res['change']) . '.';
+            if ($res['voucher_code']) $msg .= ' Đã áp dụng voucher ' . $res['voucher_code'] . ', giảm ' . money($res['voucher_discount']) . '.';
             if ($res['loyal']) {
                 if ($res['redeemed'] > 0) $msg .= ' Đã dùng ' . $res['redeemed'] . ' điểm.';
                 $msg .= ' Cộng ' . $res['earned'] . ' điểm, khách hiện có ' . $res['balance'] . ' điểm.';
@@ -204,6 +207,7 @@ class OrdersController extends Controller
         $this->view('orders/pay', [
             'title' => 'Thanh toán - Bàn ' . $order['table_name'], 'order' => $order, 'lines' => $lines,
             'subtotal' => $subtotal, 'unserved' => $unserved, 'loyal' => $this->loyalInfo($order, $subtotal), 'maxDiscount' => has_role('admin', 'manager') ? null : MAX_CASHIER_DISCOUNT_PERCENT,
+            'availableVouchers' => !empty($order['customer_id']) ? Voucher::available() : [],
         ]);
     }
 
@@ -242,13 +246,22 @@ class OrdersController extends Controller
 
         $c = Customer::findByPhone($phone);
         if ($c) {
+            if (!(int)$c['status']) {
+                flash('error', 'Hồ sơ khách đã được lưu trữ. Hãy nhờ quản lý khôi phục trước khi gắn vào đơn.');
+                $this->back($oid);
+            }
             $cid = (int)$c['id'];
         } else {
             if (mb_strlen($name) < 2 || mb_strlen($name) > 100) {
                 flash('error', 'Số này chưa có trong hệ thống. Nhập thêm tên khách để tạo hồ sơ mới.');
                 $this->back($oid);
             }
-            $cid = Customer::findOrCreate($name, $phone);
+            try {
+                $cid = Customer::findOrCreate($name, $phone);
+            } catch (DomainException $e) {
+                flash('error', $e->getMessage());
+                $this->back($oid);
+            }
         }
         Loyalty::setOrderCustomer($oid, $cid);
         flash('success', 'Đã gắn khách ' . ($c['full_name'] ?? $name) . ' vào đơn.');

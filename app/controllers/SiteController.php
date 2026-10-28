@@ -4,13 +4,57 @@ require_once APP_PATH . '/models/Site.php';
 require_once APP_PATH . '/models/Customer.php';
 require_once APP_PATH . '/models/Reservation.php';
 require_once APP_PATH . '/models/LoginAttempt.php';
+require_once APP_PATH . '/models/Order.php';
 
 // Trang công khai cho khách: giới thiệu, thực đơn, đặt bàn online, tra cứu đặt bàn. Không cần đăng nhập
 class SiteController extends Controller
 {
     public function index(): void
     {
-        $this->publicView('site/index', ['title' => 'Trang chủ', 'branches' => Site::activeBranches(), 'featured' => Site::featured(6)]);
+        $branches = Site::activeBranches();
+        $homeBranch = $branches[0] ?? false;
+        $groups = [];
+        if ($homeBranch) {
+            foreach (Site::menu((int)$homeBranch['id']) as $item) {
+                $categoryId = (int)$item['category_id'];
+                if (!isset($groups[$categoryId])) {
+                    $groups[$categoryId] = ['name' => $item['category_name'], 'items' => []];
+                }
+                $groups[$categoryId]['items'][] = $item;
+            }
+        }
+
+        $this->publicView('site/index', [
+            'title' => 'Trang chủ',
+            'branches' => $branches,
+            'homeBranch' => $homeBranch,
+            'featured' => Site::featured(6),
+            'groups' => $groups,
+        ]);
+    }
+
+    public function item(string $id = ''): void
+    {
+        $branches = Site::activeBranches();
+        $branchId = (int)($_GET['branch'] ?? ($branches[0]['id'] ?? 0));
+        $branch = $branchId ? Site::branch($branchId) : false;
+        if (!$branch && $branches) {
+            $branch = $branches[0];
+            $branchId = (int)$branch['id'];
+        }
+
+        $item = Site::item((int)$id, $branchId);
+        if (!$item) http_response_code(404);
+        $related = $item
+            ? Site::relatedItems((int)$item['category_id'], (int)$item['id'], $branchId)
+            : [];
+
+        $this->publicView('site/item', [
+            'title' => $item ? $item['name'] : 'Không tìm thấy món',
+            'item' => $item,
+            'related' => $related,
+            'branch' => $branch,
+        ]);
     }
 
     public function menu(string $bid = ''): void
@@ -21,9 +65,94 @@ class SiteController extends Controller
         if (!$branch && $branches) $branch = $branches[0];
 
         $groups = [];
-        if ($branch) foreach (Site::menu((int)$branch['id']) as $m) $groups[$m['category_name']][] = $m;
+        if ($branch) {
+            foreach (Site::menu((int)$branch['id']) as $m) {
+                $categoryId = (int)$m['category_id'];
+                if (!isset($groups[$categoryId])) {
+                    $groups[$categoryId] = ['name' => $m['category_name'], 'items' => []];
+                }
+                $groups[$categoryId]['items'][] = $m;
+            }
+        }
 
         $this->publicView('site/menu', ['title' => 'Thực đơn', 'branches' => $branches, 'branch' => $branch, 'groups' => $groups]);
+    }
+
+    public function order(string $tableId = ''): void
+    {
+        $table = Site::tableForOrder((int)$tableId);
+        $rawToken = $_GET['token'] ?? $_POST['token'] ?? '';
+        $token = is_string($rawToken) ? $rawToken : '';
+        if (!$table || !is_string($table['qr_token']) || $table['qr_token'] === ''
+            || strlen($token) !== 64 || !hash_equals($table['qr_token'], $token)) {
+            http_response_code(404);
+            $this->publicView('site/order_invalid', ['title' => 'Mã QR không hợp lệ']);
+            return;
+        }
+
+        $orderUrl = url('site/order/' . (int)$table['id']) . '?token=' . rawurlencode($token);
+        $menu = Site::menu((int)$table['branch_id']);
+        $error = null;
+        $values = [];
+        if ($this->isPost()) {
+            csrf_check();
+            if (!empty($_POST['website'])) redirect($orderUrl);
+            if (time() - (int)($_SESSION['qr_order_last'][$table['id']] ?? 0) < 3) {
+                $error = 'Vui lòng đợi một chút trước khi gửi thêm món.';
+            }
+
+            $posted = $_POST['items'] ?? [];
+            $notes = $_POST['notes'] ?? [];
+            if (!$error && (!is_array($posted) || !is_array($notes))) {
+                $error = 'Thông tin giỏ món không hợp lệ.';
+            } elseif (!$error) {
+                $items = [];
+                foreach ($posted as $id => $rawQuantity) {
+                    if (!preg_match('/^\d+$/', (string)$id) || !is_scalar($rawQuantity) || !preg_match('/^\d{1,2}$/', (string)$rawQuantity)) {
+                        $error = 'Số lượng món không hợp lệ.';
+                        break;
+                    }
+                    $quantity = (int)$rawQuantity;
+                    if ($quantity === 0) continue;
+                    $note = $notes[$id] ?? '';
+                    if (!is_scalar($note)) {
+                        $error = 'Ghi chú món không hợp lệ.';
+                        break;
+                    }
+                    $items[] = ['id' => (int)$id, 'quantity' => $quantity, 'note' => (string)$note];
+                    $values[(int)$id] = $quantity;
+                }
+                if (!$error && !$items) $error = 'Vui lòng chọn ít nhất một món.';
+                if (!$error && count($items) > 30) $error = 'Mỗi lần gửi tối đa 30 món khác nhau.';
+            }
+
+            if (!$error) {
+                [$error, $orderId] = Order::addQrItems((int)$table['id'], $items);
+                if (!$error) {
+                    $_SESSION['qr_order_last'][$table['id']] = time();
+                    $_SESSION['qr_order_success'] = ['table_id' => (int)$table['id'], 'order_id' => $orderId];
+                    redirect($orderUrl . '&sent=1');
+                }
+            }
+        }
+
+        $sent = false;
+        if (isset($_GET['sent'], $_SESSION['qr_order_success'])
+            && (int)$_SESSION['qr_order_success']['table_id'] === (int)$table['id']) {
+            $sent = true;
+            unset($_SESSION['qr_order_success']);
+        }
+
+        $this->publicView('site/order', [
+            'title' => 'Gọi món - Bàn ' . $table['table_name'],
+            'table' => $table,
+            'menu' => $menu,
+            'orderOpen' => Order::hasOpen((int)$table['id']),
+            'orderUrl' => $orderUrl,
+            'error' => $error,
+            'sent' => $sent,
+            'values' => $values,
+        ]);
     }
 
     public function book(): void
@@ -57,9 +186,11 @@ class SiteController extends Controller
                     unset($_SESSION['book_form_at']);
                     $_SESSION['last_booking'] = $id;
                     redirect('site/booked');
+                } catch (DomainException $e) {
+                    $error = $e->getMessage();
                 } catch (PDOException $e) {
                     $error = 'Chưa gửi được yêu cầu đặt bàn. Vui lòng thử lại sau hoặc gọi điện cho nhà hàng.'
-                           . (defined('DEBUG') && DEBUG ? ' [' . $e->getMessage() . ' - đã chạy migration_giai_doan_8a.sql chưa?]' : '');
+                           . (defined('DEBUG') && DEBUG ? ' [' . $e->getMessage() . ' - hãy kiểm tra cấu trúc database đặt bàn online.]' : '');
                 }
             }
         }

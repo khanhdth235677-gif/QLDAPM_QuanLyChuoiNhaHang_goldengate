@@ -26,12 +26,17 @@
     <div class="text-muted">Hết hàng</div><div class="fs-4 fw-semibold text-danger"><?= (int)$outCount ?></div></div></div></div>
 </div>
 
-<div class="mb-3 small">
-  <?php if ($low): ?>
-    Đang chỉ hiện nguyên liệu sắp hết. <a href="<?= url('inventory') . $q ?>">Hiện tất cả</a>
-  <?php else: ?>
-    <a href="<?= url('inventory') . ($q !== '' ? $q . '&low=1' : '?low=1') ?>">Chỉ hiện nguyên liệu sắp hết</a>
-  <?php endif; ?>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div class="btn-group btn-group-sm" role="group" aria-label="Lọc trạng thái nguyên liệu">
+    <a class="btn <?= !$low ? 'btn-dark' : 'btn-outline-dark' ?>" href="<?= url('inventory') . $q ?>">
+      <i class="bi bi-list-ul"></i> Hiện tất cả
+    </a>
+    <a class="btn <?= $low ? 'btn-warning' : 'btn-outline-warning' ?>" href="<?= url('inventory') . ($q !== '' ? $q . '&low=1' : '?low=1') ?>">
+      <i class="bi bi-exclamation-triangle"></i> Chỉ nguyên liệu sắp hết
+      <span class="badge rounded-pill <?= $low ? 'bg-dark' : 'bg-warning text-dark' ?> ms-1"><?= (int)$lowCount ?></span>
+    </a>
+  </div>
+  <?php if ($low): ?><span class="small text-muted">Đang lọc nguyên liệu chạm hoặc thấp hơn mức tồn tối thiểu.</span><?php endif; ?>
 </div>
 
 <div class="table-responsive">

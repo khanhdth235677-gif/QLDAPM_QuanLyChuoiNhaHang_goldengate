@@ -191,8 +191,8 @@ class Inventory
             return $short ? 'Đã thanh toán, nhưng kho không đủ theo công thức: ' . implode('; ', $short) . '. Hãy kiểm kê và nhập kho.' : null;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
-            return 'Đã thanh toán nhưng chưa tự trừ được kho. Hãy kiểm tra đã chạy migration_giai_doan_6b.sql chưa'
-                 . (defined('DEBUG') && DEBUG ? ' (' . $e->getMessage() . ')' : '') . '.';
+            return 'Đã thanh toán nhưng chưa tự trừ được kho. Hãy kiểm tra cấu trúc database có bảng công thức món và món đã được khai báo công thức chưa.'
+                 . (defined('DEBUG') && DEBUG ? ' (' . $e->getMessage() . ')' : '');
         }
     }
 }

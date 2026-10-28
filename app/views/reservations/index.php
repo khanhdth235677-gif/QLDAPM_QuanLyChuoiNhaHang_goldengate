@@ -45,10 +45,14 @@ $qs = fn($d) => '?date=' . $d . '&st=' . $filter . ($isAdmin && $branchId ? '&br
   </div>
   <div class="col-sm-3"><button class="btn btn-outline-dark w-100">Xem</button></div>
 </form>
-<div class="mb-3 small">
-  <a href="<?= url('reservations') . $qs($prev) ?>">&laquo; Hôm trước</a> ·
-  <a href="<?= url('reservations') . $qs(date('Y-m-d')) ?>">Hôm nay</a> ·
-  <a href="<?= url('reservations') . $qs($next) ?>">Hôm sau &raquo;</a>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="small text-muted me-1"><i class="bi bi-calendar3"></i> Chuyển ngày:</span>
+  <div class="btn-group btn-group-sm" role="group" aria-label="Điều hướng ngày đặt bàn">
+    <a class="btn btn-outline-dark" href="<?= url('reservations') . $qs($prev) ?>"><i class="bi bi-chevron-left"></i> Hôm trước</a>
+    <a class="btn <?= $date === date('Y-m-d') ? 'btn-warning' : 'btn-outline-warning' ?>" href="<?= url('reservations') . $qs(date('Y-m-d')) ?>">Hôm nay</a>
+    <a class="btn btn-outline-dark" href="<?= url('reservations') . $qs($next) ?>">Hôm sau <i class="bi bi-chevron-right"></i></a>
+  </div>
+  <span class="badge rounded-pill bg-light text-dark border"><?= e(date('d/m/Y', strtotime($date))) ?></span>
 </div>
 
 <div class="table-responsive">

@@ -23,3 +23,9 @@
     <a class="btn btn-outline-secondary" href="<?= url('branches') ?>">Hủy</a>
   </div>
 </form>
+<?php if ($isEdit): ?>
+<form method="post" action="<?= url('branches/delete/' . (int)$branch['id']) ?>" class="mt-3"
+      onsubmit="return confirm('Xóa chi nhánh <?= e($branch['name']) ?>? Nếu có dữ liệu liên quan, hệ thống sẽ ngừng hoạt động chi nhánh để giữ lịch sử.')">
+  <?= csrf_field() ?><button class="btn btn-outline-danger">Xóa chi nhánh</button>
+</form>
+<?php endif; ?>

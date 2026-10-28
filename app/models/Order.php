@@ -10,9 +10,11 @@ class Order
     {
         $st = Database::get()->prepare(
             'SELECT o.*, t.table_name, b.name AS branch_name, u.full_name AS created_by_name,
+                    v.code AS voucher_code,
                     TIMESTAMPDIFF(MINUTE, o.created_at, NOW()) AS minutes
              FROM orders o
              LEFT JOIN dining_tables t ON t.id = o.table_id
+             LEFT JOIN vouchers v ON v.id = o.voucher_id
              JOIN branches b ON b.id = o.branch_id
              JOIN users u ON u.id = o.created_by
              WHERE o.id = ?');
@@ -150,6 +152,81 @@ class Order
         $st = Database::get()->prepare("SELECT COUNT(*) FROM orders WHERE table_id = ? AND status = 'open'");
         $st->execute([$tableId]);
         return (int)$st->fetchColumn() > 0;
+    }
+
+    public static function addQrItems(int $tableId, array $items): array
+    {
+        if (!$items || count($items) > 30) return ['Giỏ món không hợp lệ hoặc có quá nhiều món.', null];
+
+        $pdo = Database::get();
+        $pdo->beginTransaction();
+        try {
+            $st = $pdo->prepare(
+                "SELECT o.id, o.branch_id
+                 FROM orders o
+                 JOIN dining_tables t ON t.id = o.table_id
+                 JOIN branches b ON b.id = o.branch_id
+                 WHERE t.id = ? AND o.status = 'open' AND b.status = 1
+                 LIMIT 1 FOR UPDATE");
+            $st->execute([$tableId]);
+            $order = $st->fetch();
+            if (!$order) {
+                $pdo->rollBack();
+                return ['Bàn chưa được nhân viên mở đơn hoặc đơn đã thanh toán. Vui lòng báo nhân viên hỗ trợ.', null];
+            }
+
+            $menu = $pdo->prepare(
+                'SELECT m.id, COALESCE(bm.price, m.base_price) AS price, COALESCE(bm.is_available, 1) AS available
+                 FROM menu_items m
+                 LEFT JOIN branch_menu bm ON bm.menu_item_id = m.id AND bm.branch_id = ?
+                 WHERE m.id = ? AND m.status = 1');
+            $insert = $pdo->prepare(
+                "INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, note, kitchen_status)
+                 VALUES (?, ?, ?, ?, ?, 'new')");
+            $totalQty = 0;
+
+            foreach ($items as $item) {
+                $menuItemId = (int)($item['id'] ?? 0);
+                $quantity = (int)($item['quantity'] ?? 0);
+                $rawNote = $item['note'] ?? '';
+                if (!is_scalar($rawNote)) {
+                    $pdo->rollBack();
+                    return ['Ghi chú món không hợp lệ.', null];
+                }
+                $note = trim((string)$rawNote);
+                if ($menuItemId < 1 || $quantity < 1 || $quantity > self::MAX_QTY || mb_strlen($note) > 255) {
+                    $pdo->rollBack();
+                    return ['Thông tin món không hợp lệ. Vui lòng kiểm tra số lượng và ghi chú.', null];
+                }
+
+                $totalQty += $quantity;
+                if ($totalQty > 150) {
+                    $pdo->rollBack();
+                    return ['Mỗi lần gửi tối đa 150 phần. Vui lòng chia nhỏ đơn gọi món.', null];
+                }
+
+                $menu->execute([(int)$order['branch_id'], $menuItemId]);
+                $availableItem = $menu->fetch();
+                if (!$availableItem || (int)$availableItem['available'] !== 1) {
+                    $pdo->rollBack();
+                    return ['Một hoặc nhiều món vừa ngừng bán. Vui lòng tải lại thực đơn.', null];
+                }
+                $insert->execute([
+                    (int)$order['id'], $menuItemId, $quantity, $availableItem['price'], $note !== '' ? $note : null,
+                ]);
+            }
+
+            $sum = $pdo->prepare('SELECT COALESCE(SUM(quantity * unit_price), 0) FROM order_items WHERE order_id = ?');
+            $sum->execute([(int)$order['id']]);
+            $subtotal = (int)$sum->fetchColumn();
+            $pdo->prepare('UPDATE orders SET subtotal = ?, total = GREATEST(? - discount + vat, 0) WHERE id = ?')
+                ->execute([$subtotal, $subtotal, (int)$order['id']]);
+            $pdo->commit();
+            return [null, (int)$order['id']];
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
     }
 
     public static function openList(?int $branchId): array
@@ -296,7 +373,7 @@ class Order
     // Thanh toán và đóng đơn. Trả về [lỗi|null, kết quả|null]. Mọi số tiền đều tính lại ở server.
     // Nếu đơn gắn khách thân thiết: trừ điểm khách muốn dùng ($redeemPoints) và cộng điểm tích lũy cho đơn này
     public static function pay(int $orderId, string $mode, int $value, int $vatRate, string $method, int $cash, ?int $maxDiscountPct,
-                               int $redeemPoints = 0, ?int $userId = null): array
+                               int $redeemPoints = 0, ?int $userId = null, string $voucherCode = ''): array
     {
         $pdo = Database::get();
         $loyaltyOn = Loyalty::enabled();
@@ -311,6 +388,16 @@ class Order
             $st->execute([$orderId]);
             $sub = (int)$st->fetchColumn();
             if ($sub <= 0) { $pdo->rollBack(); return ['Đơn chưa có món nào để thanh toán.', null]; }
+
+            $voucher = null;
+            if (trim($voucherCode) !== '') {
+                if ($mode !== 'none' || $redeemPoints > 0) {
+                    $pdo->rollBack();
+                    return ['Voucher không cộng dồn với chiết khấu thủ công hoặc đổi điểm.', null];
+                }
+                [$voucherError, $voucher] = Voucher::validateForPayment($pdo, $voucherCode, $o['customer_id'] ? (int)$o['customer_id'] : null, $sub);
+                if ($voucherError) { $pdo->rollBack(); return [$voucherError, null]; }
+            }
 
             // Điểm thưởng
             $loyal = $loyaltyOn && $o['customer_id'];
@@ -333,21 +420,26 @@ class Order
                 $pdo->rollBack();
                 return ['Thu ngân chỉ được giảm tối đa ' . $maxDiscountPct . '% tạm tính. Hãy nhờ quản lý xử lý mức giảm lớn hơn.', null];
             }
-            if ($manual + $pointsDiscount > $sub) {
+            if (!$voucher && $manual + $pointsDiscount > $sub) {
                 $pdo->rollBack();
                 return ['Tổng giảm giá và điểm đã dùng vượt quá giá trị đơn hàng.', null];
             }
 
-            $c = self::compute($sub, $mode, $value, $vatRate, $pointsDiscount);
+            $c = $voucher
+                ? self::compute($sub, 'amount', (int)$voucher['discount'], $vatRate)
+                : self::compute($sub, $mode, $value, $vatRate, $pointsDiscount);
             if ($method === 'cash' && $cash < $c['total']) {
                 $pdo->rollBack();
                 return ['Tiền khách đưa chưa đủ (cần ' . number_format($c['total'], 0, ',', '.') . ' ₫).', null];
             }
 
-            $pdo->prepare("UPDATE orders SET status = 'paid', subtotal = ?, discount = ?, vat = ?, total = ?, closed_at = NOW() WHERE id = ?")
-                ->execute([$sub, $c['discount'], $c['vat'], $c['total'], $orderId]);
+            $pdo->prepare("UPDATE orders SET status = 'paid', subtotal = ?, discount = ?, voucher_id = ?, vat = ?, total = ?, closed_at = NOW() WHERE id = ?")
+                ->execute([$sub, $c['discount'], $voucher['id'] ?? null, $c['vat'], $c['total'], $orderId]);
             $pdo->prepare('INSERT INTO payments (order_id, method, amount) VALUES (?, ?, ?)')
                 ->execute([$orderId, $method, $c['total']]);
+            if ($voucher && $o['customer_id']) {
+                Voucher::redeem($pdo, (int)$voucher['id'], (int)$o['customer_id'], $orderId, (int)$voucher['discount']);
+            }
             if ($o['table_id']) $pdo->prepare("UPDATE dining_tables SET status = 'empty' WHERE id = ?")->execute([$o['table_id']]);
 
             // Ghi sổ điểm: trừ điểm đã dùng, cộng điểm tích lũy theo hạng của khách
@@ -364,6 +456,7 @@ class Order
             return [null, [
                 'total' => $c['total'], 'change' => $method === 'cash' ? $cash - $c['total'] : 0,
                 'loyal' => (bool)$loyal, 'earned' => $earn, 'redeemed' => $redeemPoints,
+                'voucher_code' => $voucher['code'] ?? null, 'voucher_discount' => $voucher['discount'] ?? 0,
                 'balance' => $loyal ? $balance - $redeemPoints + $earn : null,
             ]];
         } catch (Throwable $e) {

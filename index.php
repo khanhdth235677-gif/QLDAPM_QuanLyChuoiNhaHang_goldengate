@@ -13,7 +13,7 @@ session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax']);
 session_start();
 
 // Tự đăng xuất khi không hoạt động quá SESSION_TIMEOUT giây
-if (isset($_SESSION['user']) && time() - ($_SESSION['last_activity'] ?? time()) > SESSION_TIMEOUT) {
+if ((isset($_SESSION['user']) || isset($_SESSION['customer'])) && time() - ($_SESSION['last_activity'] ?? time()) > SESSION_TIMEOUT) {
     session_unset();
     session_destroy();
     session_start();

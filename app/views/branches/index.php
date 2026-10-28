@@ -24,6 +24,11 @@
           <?= csrf_field() ?>
           <button class="btn btn-sm btn-outline-secondary"><?= (int)$b['status'] === 1 ? 'Ngừng' : 'Kích hoạt' ?></button>
         </form>
+        <form method="post" action="<?= url('branches/delete/' . $id) ?>" class="d-inline"
+              onsubmit="return confirm('Xóa chi nhánh <?= e($b['name']) ?>? Nếu có bàn, đơn hoặc dữ liệu liên quan, chi nhánh sẽ được ngừng hoạt động thay vì xóa hẳn.')">
+          <?= csrf_field() ?>
+          <button class="btn btn-sm btn-outline-danger">Xóa</button>
+        </form>
       </td>
     </tr>
   <?php endforeach; ?>
